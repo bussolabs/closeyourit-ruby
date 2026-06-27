@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "time"
+require "socket"
 
 module CloseYourIt
   # Base degli eventi di telemetria. Le sottoclassi implementano `#to_h` e `#ingest_path`
@@ -27,6 +28,14 @@ module CloseYourIt
 
     def sdk
       { "name" => "closeyourit-ruby", "version" => VERSION }
+    end
+
+    def server_name
+      return nil unless @configuration.send_server_name
+
+      Socket.gethostname
+    rescue StandardError
+      nil
     end
 
     def compact(hash)

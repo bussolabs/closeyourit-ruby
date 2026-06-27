@@ -11,6 +11,7 @@ require_relative "closeyourit/background_worker"
 require_relative "closeyourit/transport"
 require_relative "closeyourit/event"
 require_relative "closeyourit/events/error_event"
+require_relative "closeyourit/events/message_event"
 require_relative "closeyourit/events/slow_query_event"
 require_relative "closeyourit/events/slow_method_event"
 require_relative "closeyourit/subscribers/slow_query"
@@ -61,6 +62,8 @@ module CloseYourIt
       return nil if exception_captured?(exception)
 
       mark_captured(exception)
+      return nil unless sampled?
+
       event = ErrorEvent.from_exception(exception, configuration: configuration)
       client.capture_event(event)
     end
@@ -69,6 +72,16 @@ module CloseYourIt
     def capture_event(event)
       return nil unless enabled?
 
+      client.capture_event(event)
+    end
+
+    # Invia un messaggio diagnostico esplicito (non un'eccezione). Soggetto a sampling + scope.
+    #   CloseYourIt.capture_message("cache miss storm", level: "warning")
+    def capture_message(message, level: "info")
+      return nil unless enabled?
+      return nil unless sampled?
+
+      event = MessageEvent.new(message, level: level, configuration: configuration)
       client.capture_event(event)
     end
 
@@ -136,7 +149,22 @@ module CloseYourIt
       return true if exception.is_a?(CloseYourIt::Error)
 
       names = exception.class.ancestors.grep(Class).map(&:name).compact
-      configuration.excluded_exceptions.intersect?(names)
+      configuration.excluded_exceptions.any? do |matcher|
+        if matcher.is_a?(Regexp)
+          names.any? { |name| matcher.match?(name) } || matcher.match?(exception.message.to_s)
+        else
+          names.include?(matcher)
+        end
+      end
+    end
+
+    # Sampling probabilistico: 1.0 invia sempre, 0.0 mai, intermedio via Random.rand.
+    def sampled?
+      rate = configuration.sample_rate.to_f
+      return true if rate >= 1.0
+      return false if rate <= 0.0
+
+      Random.rand < rate
     end
 
     def exception_captured?(exception)

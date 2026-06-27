@@ -85,13 +85,5 @@ module CloseYourIt
 
       !path.include?("/gems/") && !path.include?(RbConfig::CONFIG["rubylibdir"].to_s)
     end
-
-    def server_name
-      return nil unless @configuration.send_server_name
-
-      Socket.gethostname
-    rescue StandardError
-      nil
-    end
   end
 end

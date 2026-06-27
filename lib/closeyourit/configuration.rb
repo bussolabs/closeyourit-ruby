@@ -15,13 +15,14 @@ module CloseYourIt
     # Header HTTP catturati nel contesto request (mai Authorization/Cookie → niente PII/segreti).
     DEFAULT_REQUEST_HEADER_ALLOWLIST = %w[Accept Content-Type User-Agent Referer].freeze
 
-    attr_accessor :endpoint_url, :token, :project_id, :release, :environment, :before_send,
+    attr_accessor :endpoint_url, :token, :project_id, :environment, :before_send,
                   :async_threads, :background_worker_max_queue,
                   :slow_query_threshold_ms, :slow_method_threshold_ms,
                   :send_pii, :obfuscate_sql, :send_server_name,
                   :capture_query_bindings, :capture_method_arguments,
                   :capture_request, :request_header_allowlist,
-                  :breadcrumbs_enabled, :max_breadcrumbs
+                  :breadcrumbs_enabled, :max_breadcrumbs, :sample_rate
+    attr_writer :release
     attr_reader :excluded_exceptions, :filter_parameters, :scrub_message_patterns
 
     def initialize
@@ -52,6 +53,9 @@ module CloseYourIt
       @breadcrumbs_enabled = true
       @max_breadcrumbs     = 100
 
+      # Sampling probabilistico di errori/messaggi (1.0 = invia tutto, 0.0 = niente).
+      @sample_rate = 1.0
+
       # Cattura valori dei parametri — opt-in, default OFF (privacy). I bind/argomenti possono contenere PII.
       @capture_query_bindings   = false
       @capture_method_arguments = false
@@ -60,8 +64,9 @@ module CloseYourIt
       @scrub_message_patterns = []
     end
 
+    # Classi/stringhe → nome (String); i Regexp restano Regexp (match per pattern su nome/messaggio).
     def excluded_exceptions=(list)
-      @excluded_exceptions = Array(list).map(&:to_s)
+      @excluded_exceptions = Array(list).map { |item| item.is_a?(Regexp) ? item : item.to_s }
     end
 
     def filter_parameters=(list)
@@ -91,7 +96,37 @@ module CloseYourIt
       self
     end
 
+    # Release effettiva: quella impostata, altrimenti auto-rilevata (ENV di deploy/CI o git).
+    def release
+      return @release unless @release.nil?
+
+      @release = detect_release
+    end
+
+    # Auto-rilevamento release dalle env di deploy/CI o dal git short SHA. Mai solleva.
+    def detect_release
+      ENV["KAMAL_VERSION"] ||
+        ENV["GIT_SHA"] ||
+        ENV["GIT_REVISION"] ||
+        ENV["SOURCE_VERSION"] ||
+        ENV["HEROKU_SLUG_COMMIT"] ||
+        git_revision
+    rescue StandardError
+      nil
+    end
+
     private
+
+    # `.git` è una directory in un checkout normale, un file in un worktree → File.directory?
+    # è false nei worktree, così i test non lanciano subprocess git (deterministico).
+    def git_revision
+      return nil unless File.directory?(".git")
+
+      sha = `git rev-parse --short HEAD 2>/dev/null`.strip
+      sha.empty? ? nil : sha
+    rescue StandardError
+      nil
+    end
 
     def insecure_endpoint?
       uri = parsed_endpoint
