@@ -8,7 +8,16 @@ installa per inviare a CloseYourIt:
 - **Query/metodi lenti** → sul path `/api/v1/projects/:id/metrics` (pipeline metriche dedicata,
   raggruppate per signature con aggregati di durata) — ciò che Sentry/GlitchTip non danno bene.
 
+È il **client primario** di CloseYourIt: replica e migliora ciò che fa un SDK Sentry (request context,
+user/tag/contesto, breadcrumbs, errori nei background job, errori handled, sampling, messaggi) senza
+dipendere dagli SDK Sentry.
+
 Caratteristiche:
+- **Contesto ricco** sull'errore: request HTTP (method/url/header), user/tag/contesto custom, breadcrumbs
+  (cronologia query offuscate prima del crash).
+- Cattura **automatica** di: eccezioni non gestite (Rack), errori in **ActiveJob/Sidekiq** (oggi persi),
+  errori **handled** (`Rails.error.report`), query/metodi lenti.
+- `capture_message`, **sampling** (`sample_rate`), ignore per **Regexp**, release detection automatica.
 - Invio **fire-and-forget**: thread pool in background, non blocca la request, **non crasha mai** l'app.
 - **No-op** se non configurata (sicura in sviluppo/test).
 - **Privacy-by-default**: niente PII a meno di abilitarla esplicitamente.
@@ -55,11 +64,18 @@ end
 | `project_id` | `ENV["CLOSEYOURIT_PROJECT_ID"]` | UUID progetto (nel path di ingest) |
 | `release` | `ENV["CLOSEYOURIT_RELEASE"]` | Versione riportata negli errori (opzionale) |
 | `environment` | `Rails.env` / `RACK_ENV` / `"development"` | Ambiente riportato negli eventi |
-| `excluded_exceptions` | `RoutingError`, `RecordNotFound` | Classi eccezione da NON inviare |
+| `excluded_exceptions` | `RoutingError`, `RecordNotFound` | Eccezioni da NON inviare — **String** (nome classe) o **Regexp** (match su nome/messaggio) |
 | `before_send` | `nil` | `->(payload) { ... }` — scrub finale; ritorna payload o `nil` per scartare |
+| `sample_rate` | `1.0` | Frazione di errori/messaggi inviata (`1.0` tutto, `0.0` niente) |
 | `async_threads` | `cpu/2` | Thread di invio; `0` = sincrono (test) |
 | `slow_query_threshold_ms` | `100` | Soglia query lente |
 | `slow_method_threshold_ms` | `200` | Soglia metodi lenti |
+| `capture_request` | `true` | Cattura il contesto HTTP della richiesta (method/url/header allowlist) |
+| `request_header_allowlist` | `Accept`, `Content-Type`, `User-Agent`, `Referer` | Header inviati (mai Authorization/Cookie) |
+| `breadcrumbs_enabled` | `true` | Cronologia (query offuscate + `add_breadcrumb`) allegata all'errore |
+| `max_breadcrumbs` | `100` | Dimensione max del ring buffer breadcrumbs |
+| `capture_handled_errors` | `true` | Cattura gli errori riportati via `Rails.error.report` |
+| `report_active_job_errors` | `true` | Cattura gli errori dei job ActiveJob/Solid Queue/Sidekiq |
 | `send_pii` | `false` | Master switch PII |
 | `obfuscate_sql` | `true` | Maschera i literal nello SQL |
 | `filter_parameters` | `[]` | Chiavi extra da redarre (mergiate con quelle di Rails) |
@@ -81,6 +97,36 @@ rescue => e
   raise
 end
 ```
+
+### Request context (automatico, con Rails)
+
+Un Rack middleware allega a ogni evento il contesto HTTP della richiesta: **method**, **url** (senza
+query string) e gli **header dell'allowlist** (`request_header_allowlist`, mai Authorization/Cookie).
+Query string e IP solo con `send_pii`. Lo scope è resettato a fine richiesta (niente bleed tra request).
+
+### Background job + errori handled (automatico, con Rails)
+
+- **ActiveJob / Solid Queue / Sidekiq**: gli errori dei job (prima persi) vengono catturati con tag
+  `job.class`/`job.queue` e contesto del job, poi ri-sollevati.
+- **`Rails.error.report`** (ActiveSupport ErrorReporter): gli errori *handled* vengono inviati con
+  `mechanism.handled = true` e il `level` mappato dalla severity. La dedup garantisce un solo invio anche
+  se la stessa eccezione passa da più punti (Rack + job + reporter).
+
+### Contesto, breadcrumbs e messaggi (manuale)
+
+```ruby
+CloseYourIt.set_user(id: account.id)              # solo id; email/ip solo se send_pii
+CloseYourIt.set_tag(:tenant, current_tenant.slug)
+CloseYourIt.set_context(:billing, { plan: "pro" })
+CloseYourIt.set_extra(:cart_size, cart.size)
+CloseYourIt.configure_scope { |s| s.set_tag(:area, "checkout") }
+
+CloseYourIt.add_breadcrumb(message: "coupon applicato", category: "ui")  # cronologia pre-crash
+CloseYourIt.capture_message("cache miss storm", level: "warning")        # messaggio diagnostico
+```
+
+Lo scope (user/tag/contesto/breadcrumbs) è **per-richiesta/job** e viene allegato automaticamente
+all'evento d'errore catturato nello stesso contesto di esecuzione.
 
 ### Query lente (automatico, con Rails) → metriche
 

@@ -3,6 +3,13 @@
 > Documento di design + work breakdown + milestone di verifica per la creazione della gemma client.
 > Il backend ingest CloseYourIt è la controparte: qui è trattato come **contratto esterno** (§13).
 
+> **Stato v0.2.0 — client primario (parità + oltre sentry-ruby).** Oltre a eccezioni/slow-query/slow-method,
+> la gemma cattura ora: **request context** (Rack middleware), **scope per-richiesta/job** (`set_user`/
+> `set_tag`/`set_context`/`set_extra`/`configure_scope`), **breadcrumbs** (auto SQL offuscato + `add_breadcrumb`),
+> **errori ActiveJob/Sidekiq** e **handled** (`Rails.error.report`), **`capture_message`**, **sampling**
+> (`sample_rate`), **ignore per Regexp** e **release detection** automatica. Linea ingest unica = Bearer
+> `/api/v1/projects/:id/{events,metrics}` (formato evento Sentry-shaped, additivo: fingerprint invariato).
+
 ---
 
 ## 1. Overview
