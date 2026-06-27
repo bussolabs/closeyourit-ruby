@@ -31,7 +31,7 @@ RSpec.describe "CloseYourIt.measure" do
         body["label"] == "checkout.total" &&
         body["sample_id"].is_a?(String) &&
         body.key?("duration_ms") &&
-        !body.key?("args")
+        !body.key?("arguments")
     }
   end
 
@@ -70,7 +70,34 @@ RSpec.describe CloseYourIt::Monitor do
     expect(klass.new.compute(3, 4)).to eq(7)
     expect(WebMock).to have_requested(:post, url).with { |req|
       body = JSON.parse(req.body)
-      body["kind"] == "slow_method" && body["label"].include?("compute") && !body.key?("args")
+      body["kind"] == "slow_method" && body["label"].include?("compute") && !body.key?("arguments")
+    }
+  end
+
+  it "include arguments (posizionali + kwargs scrubbed) quando capture_method_arguments è ON" do
+    CloseYourIt.init do |c|
+      c.endpoint_url = "https://closeyour.it"
+      c.token = "tok"
+      c.project_id = "proj-1"
+      c.async_threads = 0
+      c.slow_method_threshold_ms = 0
+      c.capture_method_arguments = true
+    end
+    stub_request(:post, url)
+
+    klass = Class.new do
+      include CloseYourIt::Monitor
+      def run(period, password:) = [ period, password ]
+      monitor :run
+    end
+
+    klass.new.run("daily", password: "secret")
+
+    expect(WebMock).to have_requested(:post, url).with { |req|
+      JSON.parse(req.body)["arguments"] == [
+        { "name" => "arg1", "value" => "\"daily\"" },
+        { "name" => "password", "value" => "[FILTERED]" }
+      ]
     }
   end
 end

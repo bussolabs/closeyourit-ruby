@@ -22,7 +22,7 @@ module CloseYourIt
         wrapper = Module.new do
           define_method(method_name) do |*args, **kwargs, &block|
             measured_label = label || "#{self.class}##{method_name}"
-            CloseYourIt::Instrumenter.measure(measured_label) do
+            CloseYourIt::Instrumenter.measure(measured_label, args: args, kwargs: kwargs) do
               super(*args, **kwargs, &block)
             end
           end
