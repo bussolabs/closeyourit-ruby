@@ -32,5 +32,17 @@ module CloseYourIt
     def compact(hash)
       hash.reject { |_key, value| value.nil? }
     end
+
+    # Fusione ricorsiva: gli Hash annidati vengono fusi (es. `contexts.runtime` preservato
+    # mentre lo scope aggiunge `contexts.active_job`), gli scalari sovrascritti.
+    def deep_merge(base, override)
+      base.merge(override) do |_key, old_value, new_value|
+        if old_value.is_a?(Hash) && new_value.is_a?(Hash)
+          deep_merge(old_value, new_value)
+        else
+          new_value
+        end
+      end
+    end
   end
 end

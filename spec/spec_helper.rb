@@ -18,9 +18,10 @@ RSpec.configure do |config|
   config.order = :random
   Kernel.srand config.seed
 
-  # Ogni test parte da configurazione e client puliti.
+  # Ogni test parte da configurazione, client e scope puliti.
   config.before do
     CloseYourIt.instance_variable_set(:@configuration, nil)
     CloseYourIt.instance_variable_set(:@client, nil)
+    CloseYourIt::Scope.reset!
   end
 end

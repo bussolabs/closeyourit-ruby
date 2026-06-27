@@ -4,6 +4,7 @@ require "logger"
 
 require_relative "closeyourit/version"
 require_relative "closeyourit/configuration"
+require_relative "closeyourit/scope"
 require_relative "closeyourit/background_worker"
 require_relative "closeyourit/transport"
 require_relative "closeyourit/event"
@@ -72,6 +73,37 @@ module CloseYourIt
     #   CloseYourIt.measure("checkout.total") { ... }
     def measure(label, &block)
       Instrumenter.measure(label, &block)
+    end
+
+    # --- Scope per-richiesta/job (user/tags/extra/contexts) ---
+    # Arricchiscono l'evento corrente; resettati a fine richiesta/job da middleware e estensioni.
+
+    def set_user(attributes)
+      Scope.current.set_user(attributes)
+    end
+
+    def set_tag(key, value)
+      Scope.current.set_tag(key, value)
+    end
+
+    def set_tags(attributes)
+      Scope.current.set_tags(attributes)
+    end
+
+    def set_context(key, attributes)
+      Scope.current.set_context(key, attributes)
+    end
+
+    def set_extra(key, value)
+      Scope.current.set_extra(key, value)
+    end
+
+    def configure_scope
+      yield(Scope.current) if block_given?
+    end
+
+    def clear_scope
+      Scope.reset!
     end
 
     def logger

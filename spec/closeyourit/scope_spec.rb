@@ -1,0 +1,129 @@
+# frozen_string_literal: true
+
+RSpec.describe CloseYourIt::Scope do
+  subject(:scope) { described_class.new }
+
+  describe "mutatori e #to_event_hash" do
+    it "è vuoto quando lo scope è pulito" do
+      expect(scope.to_event_hash).to eq({})
+    end
+
+    it "raccoglie tag, extra e context in forma Sentry" do
+      scope.set_tag(:area, "checkout")
+      scope.set_extra(:order_id, 42)
+      scope.set_context(:active_job, { job_id: "abc", executions: 1 })
+
+      hash = scope.to_event_hash
+      expect(hash["tags"]).to eq("area" => "checkout")
+      expect(hash["extra"]).to eq("order_id" => 42)
+      expect(hash["contexts"]).to eq("active_job" => { "job_id" => "abc", "executions" => 1 })
+    end
+
+    it "set_tags fonde più tag in una volta" do
+      scope.set_tags(a: "1", b: "2")
+      scope.set_tags(b: "3")
+      expect(scope.to_event_hash["tags"]).to eq("a" => "1", "b" => "3")
+    end
+
+    it "espone request quando impostata dal middleware" do
+      scope.request = { "method" => "GET", "url" => "https://x/y" }
+      expect(scope.to_event_hash["request"]).to eq("method" => "GET", "url" => "https://x/y")
+    end
+  end
+
+  describe "#serialize_user — PII gated" do
+    it "tiene solo id quando send_pii è false (default)" do
+      scope.set_user(id: 7, email: "a@b.com", ip_address: "1.2.3.4")
+      expect(scope.to_event_hash["user"]).to eq("id" => 7)
+    end
+
+    it "tiene email/ip quando send_pii è true" do
+      CloseYourIt.init do |c|
+        c.endpoint_url = "https://closeyour.it"
+        c.token = "tok"
+        c.project_id = "proj-1"
+        c.send_pii = true
+      end
+      scope.set_user(id: 7, email: "a@b.com")
+      expect(scope.to_event_hash["user"]).to eq("id" => 7, "email" => "a@b.com")
+    end
+  end
+
+  describe "execution-local storage" do
+    it "current ritorna la stessa istanza nello stesso contesto" do
+      expect(described_class.current).to be(described_class.current)
+    end
+
+    it "reset! azzera lo scope corrente" do
+      described_class.current.set_tag(:x, "1")
+      described_class.reset!
+      expect(described_class.current.to_event_hash).to eq({})
+    end
+
+    it "isola lo scope tra thread diversi" do
+      described_class.current.set_user(id: "main")
+      other = Thread.new { described_class.current.user.dup }.value
+
+      expect(other).to eq({})
+      expect(described_class.current.user).to eq("id" => "main")
+    end
+  end
+
+  describe "API a livello di modulo (deleganti allo scope corrente)" do
+    after { CloseYourIt.clear_scope }
+
+    it "CloseYourIt.set_user/set_tag/set_context popolano lo scope corrente" do
+      CloseYourIt.set_user(id: 1)
+      CloseYourIt.set_tag(:env, "prod")
+      CloseYourIt.set_context(:device, { os: "linux" })
+
+      hash = CloseYourIt::Scope.current.to_event_hash
+      expect(hash["user"]).to eq("id" => 1)
+      expect(hash["tags"]).to eq("env" => "prod")
+      expect(hash["contexts"]).to eq("device" => { "os" => "linux" })
+    end
+
+    it "configure_scope yielda lo scope corrente" do
+      CloseYourIt.configure_scope do |s|
+        s.set_tag(:via, "block")
+      end
+      expect(CloseYourIt::Scope.current.to_event_hash["tags"]).to eq("via" => "block")
+    end
+
+    it "clear_scope azzera" do
+      CloseYourIt.set_tag(:x, "1")
+      CloseYourIt.clear_scope
+      expect(CloseYourIt::Scope.current.to_event_hash).to eq({})
+    end
+  end
+
+  describe "merge nello ErrorEvent" do
+    let(:config) do
+      CloseYourIt::Configuration.new.tap do |c|
+        c.environment = "test"
+        c.project_id = "proj-1"
+      end
+    end
+
+    def boom
+      raise "boom"
+    rescue RuntimeError => e
+      e
+    end
+
+    it "fonde user/tags/extra/contexts dello scope nel payload, preservando contexts.runtime" do
+      CloseYourIt.set_user(id: 9)
+      CloseYourIt.set_tag(:area, "checkout")
+      CloseYourIt.set_context(:active_job, { job_id: "j1" })
+
+      payload = CloseYourIt::ErrorEvent.from_exception(boom, configuration: config).to_h
+
+      expect(payload["user"]).to eq("id" => 9)
+      expect(payload["tags"]).to eq("area" => "checkout")
+      expect(payload.dig("contexts", "runtime", "name")).to eq("ruby")
+      expect(payload.dig("contexts", "active_job")).to eq("job_id" => "j1")
+    ensure
+      CloseYourIt.clear_scope
+    end
+  end
+end

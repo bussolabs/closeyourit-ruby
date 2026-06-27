@@ -21,7 +21,7 @@ module CloseYourIt
     end
 
     def to_h
-      compact(
+      base = compact(
         "event_id" => SecureRandom.uuid.delete("-"),
         "timestamp" => @occurred_at,
         "platform" => "ruby",
@@ -33,6 +33,8 @@ module CloseYourIt
         "contexts" => { "runtime" => { "name" => "ruby", "version" => RUBY_VERSION } },
         "sdk" => sdk
       )
+      # Fonde il contesto per-richiesta/job (user/tags/extra/contexts/request) raccolto nello Scope.
+      deep_merge(base, CloseYourIt::Scope.current.to_event_hash)
     end
 
     def ingest_path(project_id)
