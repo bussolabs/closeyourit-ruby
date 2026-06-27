@@ -20,7 +20,8 @@ module CloseYourIt
                   :slow_query_threshold_ms, :slow_method_threshold_ms,
                   :send_pii, :obfuscate_sql, :send_server_name,
                   :capture_query_bindings, :capture_method_arguments,
-                  :capture_request, :request_header_allowlist
+                  :capture_request, :request_header_allowlist,
+                  :breadcrumbs_enabled, :max_breadcrumbs
     attr_reader :excluded_exceptions, :filter_parameters, :scrub_message_patterns
 
     def initialize
@@ -46,6 +47,10 @@ module CloseYourIt
       # Contesto HTTP della richiesta (method/url/header allowlist). Body/query/IP solo con send_pii.
       @capture_request          = true
       @request_header_allowlist = DEFAULT_REQUEST_HEADER_ALLOWLIST.dup
+
+      # Breadcrumbs: cronologia (query offuscate, eventi custom) allegata all'errore.
+      @breadcrumbs_enabled = true
+      @max_breadcrumbs     = 100
 
       # Cattura valori dei parametri — opt-in, default OFF (privacy). I bind/argomenti possono contenere PII.
       @capture_query_bindings   = false

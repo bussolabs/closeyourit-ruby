@@ -35,6 +35,12 @@ module CloseYourIt
             type_casted_binds: event.payload[:type_casted_binds],
             source: CloseYourIt::Rails::QuerySource.from_caller
           )
+          subscriber.breadcrumb(
+            name: event.payload[:name],
+            sql: event.payload[:sql],
+            duration_ms: event.duration,
+            cached: event.payload.fetch(:cached, false)
+          )
         end
       end
     end

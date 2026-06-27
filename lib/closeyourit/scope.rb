@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "breadcrumb_buffer"
+
 module CloseYourIt
   # Contesto per-richiesta (o per-job) isolato per execution-context (Fiber storage):
   # user/tags/extra/contexts/request. Letto da ErrorEvent#to_h sul thread chiamante (sincrono)
@@ -33,7 +35,7 @@ module CloseYourIt
     end
 
     attr_accessor :request
-    attr_reader :user, :tags, :extra, :contexts
+    attr_reader :user, :tags, :extra, :contexts, :breadcrumbs
 
     def initialize
       clear
@@ -59,23 +61,29 @@ module CloseYourIt
       @extra[key.to_s] = value
     end
 
+    def add_breadcrumb(breadcrumb)
+      @breadcrumbs.add(breadcrumb)
+    end
+
     def clear
-      @user     = {}
-      @tags     = {}
-      @extra    = {}
-      @contexts = {}
-      @request  = nil
+      @user        = {}
+      @tags        = {}
+      @extra       = {}
+      @contexts    = {}
+      @request     = nil
+      @breadcrumbs = BreadcrumbBuffer.new(CloseYourIt.configuration.max_breadcrumbs)
     end
 
     # Sottoinsieme non vuoto in forma evento Sentry (user/tags/extra/contexts/request),
     # fuso nel payload da ErrorEvent#to_h.
     def to_event_hash
       {
-        "user"     => serialize_user,
-        "tags"     => presence(@tags),
-        "extra"    => presence(@extra),
-        "contexts" => presence(@contexts),
-        "request"  => @request
+        "user"        => serialize_user,
+        "tags"        => presence(@tags),
+        "extra"       => presence(@extra),
+        "contexts"    => presence(@contexts),
+        "request"     => @request,
+        "breadcrumbs" => breadcrumbs_payload
       }.reject { |_key, value| value.nil? }
     end
 
@@ -88,6 +96,12 @@ module CloseYourIt
       return @user if CloseYourIt.configuration.send_pii
 
       presence(@user.slice("id"))
+    end
+
+    def breadcrumbs_payload
+      return nil if @breadcrumbs.empty?
+
+      { "values" => @breadcrumbs.to_a }
     end
 
     def presence(hash)

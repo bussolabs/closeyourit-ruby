@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "../events/slow_query_event"
+require_relative "../scrubber"
 
 module CloseYourIt
   module Subscribers
@@ -27,6 +28,21 @@ module CloseYourIt
           config
         )
         CloseYourIt.capture_event(event)
+      end
+
+      # Breadcrumb per OGNI query non di sistema (non solo lente): SQL offuscato, niente bind.
+      # Dà la cronologia "quali query prima del crash" allegata all'evento d'errore.
+      def breadcrumb(name:, sql:, duration_ms:, cached: false)
+        config = @configuration || CloseYourIt.configuration
+        return if ignored_name?(name)
+        return unless config.breadcrumbs_enabled
+
+        CloseYourIt.add_breadcrumb(
+          category: "query",
+          type: "query",
+          message: Scrubber.new(config).obfuscate_sql(sql),
+          data: { "name" => name, "duration_ms" => duration_ms.to_f.round(2), "cached" => cached }
+        )
       end
 
       private

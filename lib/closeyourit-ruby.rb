@@ -4,7 +4,9 @@ require "logger"
 
 require_relative "closeyourit/version"
 require_relative "closeyourit/configuration"
+require_relative "closeyourit/breadcrumb"
 require_relative "closeyourit/scope"
+require_relative "closeyourit/scrubber"
 require_relative "closeyourit/background_worker"
 require_relative "closeyourit/transport"
 require_relative "closeyourit/event"
@@ -105,6 +107,17 @@ module CloseYourIt
 
     def clear_scope
       Scope.reset!
+    end
+
+    # Aggiunge una briciola di contesto (query, navigazione, evento custom) all'evento corrente.
+    # No-op se breadcrumbs disabilitati; `data` viene scrubato (denylist) prima di essere salvato.
+    def add_breadcrumb(message: nil, category: nil, type: "default", level: "info", data: {})
+      return nil unless configuration.breadcrumbs_enabled
+
+      scrubbed = data.nil? || data.empty? ? data : Scrubber.new(configuration).filter_params(data)
+      Scope.current.add_breadcrumb(
+        Breadcrumb.new(message: message, category: category, type: type, level: level, data: scrubbed)
+      )
     end
 
     def logger
