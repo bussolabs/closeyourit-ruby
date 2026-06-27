@@ -16,6 +16,7 @@ require_relative "closeyourit/instrumenter"
 require_relative "closeyourit/monitor"
 require_relative "closeyourit/client"
 require_relative "closeyourit/rails/capture_exceptions"
+require_relative "closeyourit/rails/request_context"
 
 # CloseYourIt — client di telemetria (errori + statistiche di query/metodi lenti)
 # che invia gli eventi all'endpoint di ingest di CloseYourIt.

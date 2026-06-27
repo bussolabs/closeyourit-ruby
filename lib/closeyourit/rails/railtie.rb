@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "capture_exceptions"
+require_relative "request_context"
 require_relative "query_source"
 require_relative "../subscribers/slow_query"
 
@@ -11,6 +12,12 @@ module CloseYourIt
     class Railtie < ::Rails::Railtie
       initializer "closeyourit.use_rack_middleware" do |app|
         app.config.middleware.use CloseYourIt::Rails::CaptureExceptions
+        # RequestContext deve AVVOLGERE CaptureExceptions: lo scope dev'essere già popolato
+        # quando l'eccezione risale a CaptureExceptions.
+        app.config.middleware.insert_before(
+          CloseYourIt::Rails::CaptureExceptions,
+          CloseYourIt::Rails::RequestContext
+        )
       end
 
       initializer "closeyourit.subscribe_slow_queries" do

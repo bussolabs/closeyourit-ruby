@@ -12,11 +12,15 @@ module CloseYourIt
       ActiveRecord::RecordNotFound
     ].freeze
 
+    # Header HTTP catturati nel contesto request (mai Authorization/Cookie → niente PII/segreti).
+    DEFAULT_REQUEST_HEADER_ALLOWLIST = %w[Accept Content-Type User-Agent Referer].freeze
+
     attr_accessor :endpoint_url, :token, :project_id, :release, :environment, :before_send,
                   :async_threads, :background_worker_max_queue,
                   :slow_query_threshold_ms, :slow_method_threshold_ms,
                   :send_pii, :obfuscate_sql, :send_server_name,
-                  :capture_query_bindings, :capture_method_arguments
+                  :capture_query_bindings, :capture_method_arguments,
+                  :capture_request, :request_header_allowlist
     attr_reader :excluded_exceptions, :filter_parameters, :scrub_message_patterns
 
     def initialize
@@ -38,6 +42,10 @@ module CloseYourIt
       @send_pii         = false
       @obfuscate_sql    = true
       @send_server_name = true
+
+      # Contesto HTTP della richiesta (method/url/header allowlist). Body/query/IP solo con send_pii.
+      @capture_request          = true
+      @request_header_allowlist = DEFAULT_REQUEST_HEADER_ALLOWLIST.dup
 
       # Cattura valori dei parametri — opt-in, default OFF (privacy). I bind/argomenti possono contenere PII.
       @capture_query_bindings   = false
