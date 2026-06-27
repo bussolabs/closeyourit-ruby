@@ -1,0 +1,31 @@
+name: Release
+
+# Pubblica su RubyGems quando si pusha un tag vX.Y.Z, MA solo se rubocop + rspec sono verdi.
+# Autenticazione via Trusted Publishing (OIDC): nessuna API key in repo.
+# Il publisher su RubyGems è registrato con workflow filename "release.yml".
+
+on:
+  push:
+    tags: [ "v*" ]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # crea la GitHub Release
+      id-token: write   # OIDC → RubyGems
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: .ruby-version
+          bundler-cache: true
+
+      # Gate: niente publish se i test falliscono.
+      - run: bundle exec rubocop
+      - run: COVERAGE_ENFORCE=1 bundle exec rspec
+
+      # Build + push su RubyGems via OIDC (key effimera, nessun segreto).
+      - uses: rubygems/release-gem@v1
