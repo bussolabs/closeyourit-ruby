@@ -48,6 +48,11 @@ module CloseYourIt
       end
     end
 
+    # Valore di un singolo bind/argomento: redatto se il nome (colonna/parametro) è sensibile.
+    def filter_value(key, value)
+      sensitive_key?(key) ? FILTERED : value
+    end
+
     private
 
     def sensitive_key?(key)

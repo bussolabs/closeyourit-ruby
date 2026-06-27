@@ -63,4 +63,19 @@ RSpec.describe CloseYourIt::Scrubber do
       expect(scrubber.scrub_message("hello")).to eq("hello")
     end
   end
+
+  describe "#filter_value (singolo bind per nome colonna)" do
+    it "redige il valore di una colonna sensibile" do
+      expect(scrubber.filter_value("password", "secret")).to eq("[FILTERED]")
+      expect(scrubber.filter_value("api_token", "abc")).to eq("[FILTERED]")
+    end
+
+    it "preserva il valore di una colonna non sensibile" do
+      expect(scrubber.filter_value("order_id", 42)).to eq(42)
+    end
+
+    it "rispetta filter_parameters custom" do
+      expect(scrubber(filter_parameters: [ "pin" ]).filter_value("user_pin", "1234")).to eq("[FILTERED]")
+    end
+  end
 end

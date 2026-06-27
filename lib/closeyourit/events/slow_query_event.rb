@@ -26,6 +26,8 @@ module CloseYourIt
         "name" => @payload[:name],
         "cached" => @payload.fetch(:cached, false),
         "db_system" => db_system,
+        "source" => @payload[:source],
+        "bindings" => bindings,
         "sdk" => sdk
       )
     end
@@ -41,6 +43,19 @@ module CloseYourIt
       return nil unless connection.respond_to?(:adapter_name)
 
       connection.adapter_name.to_s.downcase
+    end
+
+    # Valori dei bind — SOLO se capture_query_bindings (opt-in, default OFF). Scrub per nome colonna
+    # (denylist password/token/…); il valore è reso come stringa per sicurezza JSON.
+    def bindings
+      return nil unless @configuration.capture_query_bindings
+
+      binds = Array(@payload[:binds])
+      values = Array(@payload[:type_casted_binds])
+      binds.each_with_index.map do |attr, i|
+        name = attr.respond_to?(:name) ? attr.name.to_s : attr.to_s
+        { "name" => name, "value" => @scrubber.filter_value(name, values[i]).to_s }
+      end
     end
   end
 end

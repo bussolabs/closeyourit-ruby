@@ -71,4 +71,44 @@ RSpec.describe CloseYourIt::Subscribers::SlowQuery do
         !body.key?("binds")
     }
   end
+
+  it "include la source (call-site) sempre, anche con cattura bind OFF" do
+    enable!(threshold: 1)
+    stub_request(:post, url)
+
+    record(duration_ms: 50, source: "app/models/order.rb:42")
+
+    expect(WebMock).to have_requested(:post, url).with { |req|
+      JSON.parse(req.body)["source"] == "app/models/order.rb:42"
+    }
+  end
+
+  it "NON include bindings se capture_query_bindings è OFF (default privacy)" do
+    enable!(threshold: 1)
+    stub_request(:post, url)
+    attr = double("attr", name: "email")
+
+    record(duration_ms: 50, binds: [ attr ], type_casted_binds: [ "a@b.com" ])
+
+    expect(WebMock).to have_requested(:post, url).with { |req|
+      !JSON.parse(req.body).key?("bindings")
+    }
+  end
+
+  it "include bindings (scrubbed per colonna) quando capture_query_bindings è ON" do
+    enable!(threshold: 1)
+    CloseYourIt.configuration.capture_query_bindings = true
+    stub_request(:post, url)
+    order = double("attr", name: "order_id")
+    pw = double("attr", name: "password")
+
+    record(duration_ms: 50, binds: [ order, pw ], type_casted_binds: [ 42, "secret" ])
+
+    expect(WebMock).to have_requested(:post, url).with { |req|
+      JSON.parse(req.body)["bindings"] == [
+        { "name" => "order_id", "value" => "42" },
+        { "name" => "password", "value" => "[FILTERED]" }
+      ]
+    }
+  end
 end

@@ -15,7 +15,8 @@ module CloseYourIt
     attr_accessor :endpoint_url, :token, :project_id, :release, :environment, :before_send,
                   :async_threads, :background_worker_max_queue,
                   :slow_query_threshold_ms, :slow_method_threshold_ms,
-                  :send_pii, :obfuscate_sql, :send_server_name
+                  :send_pii, :obfuscate_sql, :send_server_name,
+                  :capture_query_bindings, :capture_method_arguments
     attr_reader :excluded_exceptions, :filter_parameters, :scrub_message_patterns
 
     def initialize
@@ -37,6 +38,10 @@ module CloseYourIt
       @send_pii         = false
       @obfuscate_sql    = true
       @send_server_name = true
+
+      # Cattura valori dei parametri — opt-in, default OFF (privacy). I bind/argomenti possono contenere PII.
+      @capture_query_bindings   = false
+      @capture_method_arguments = false
 
       @filter_parameters      = []
       @scrub_message_patterns = []

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "capture_exceptions"
+require_relative "query_source"
 require_relative "../subscribers/slow_query"
 
 module CloseYourIt
@@ -22,7 +23,10 @@ module CloseYourIt
             duration_ms: event.duration,
             sql: event.payload[:sql],
             cached: event.payload.fetch(:cached, false),
-            connection: event.payload[:connection]
+            connection: event.payload[:connection],
+            binds: event.payload[:binds],
+            type_casted_binds: event.payload[:type_casted_binds],
+            source: CloseYourIt::Rails::QuerySource.from_caller
           )
         end
       end

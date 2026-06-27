@@ -35,6 +35,11 @@ RSpec.describe CloseYourIt::Configuration do
       expect(config.slow_method_threshold_ms).to eq(200)
     end
 
+    it "ha la cattura bind/argomenti OFF di default (opt-in privacy)" do
+      expect(config.capture_query_bindings).to be(false)
+      expect(config.capture_method_arguments).to be(false)
+    end
+
     it "ha almeno un thread di background" do
       expect(config.async_threads).to be >= 1
     end

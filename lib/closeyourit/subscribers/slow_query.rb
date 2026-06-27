@@ -14,13 +14,15 @@ module CloseYourIt
         @configuration = configuration
       end
 
-      def record(name:, duration_ms:, sql:, cached: false, connection: nil)
+      def record(name:, duration_ms:, sql:, cached: false, connection: nil,
+                 binds: nil, type_casted_binds: nil, source: nil)
         config = @configuration || CloseYourIt.configuration
         return if ignored_name?(name)
         return if duration_ms < config.slow_query_threshold_ms
 
         event = SlowQueryEvent.new(
-          { name: name, sql: sql, cached: cached, connection: connection },
+          { name: name, sql: sql, cached: cached, connection: connection,
+            binds: binds, type_casted_binds: type_casted_binds, source: source },
           duration_ms,
           config
         )
