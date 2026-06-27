@@ -10,13 +10,16 @@ module CloseYourIt
   # (Errors::Ingest::Normalize). Usa `backtrace_locations` (niente regex) e mette la cause-chain in
   # `exception.values` ordinata dall'esterna alla principale (Sentry: values.last = il crash).
   class ErrorEvent < Event
-    def self.from_exception(exception, configuration:)
-      new(exception, configuration)
+    def self.from_exception(exception, configuration:, handled: false, level: "error", contexts: nil)
+      new(exception, configuration, handled: handled, level: level, contexts: contexts)
     end
 
-    def initialize(exception, configuration)
+    def initialize(exception, configuration, handled: false, level: "error", contexts: nil)
       super(configuration)
       @exception = exception
+      @handled = handled
+      @level = level
+      @contexts = contexts
       @scrubber = Scrubber.new(configuration)
     end
 
@@ -25,7 +28,7 @@ module CloseYourIt
         "event_id" => SecureRandom.uuid.delete("-"),
         "timestamp" => @occurred_at,
         "platform" => "ruby",
-        "level" => "error",
+        "level" => @level,
         "environment" => environment,
         "release" => @configuration.release,
         "server_name" => server_name,
@@ -34,7 +37,9 @@ module CloseYourIt
         "sdk" => sdk
       )
       # Fonde il contesto per-richiesta/job (user/tags/extra/contexts/request) raccolto nello Scope.
-      deep_merge(base, CloseYourIt::Scope.current.to_event_hash)
+      merged = deep_merge(base, CloseYourIt::Scope.current.to_event_hash)
+      # Context extra passato esplicitamente (es. rails_error dall'ErrorReporter).
+      @contexts ? deep_merge(merged, { "contexts" => @contexts }) : merged
     end
 
     def ingest_path(project_id)
@@ -61,7 +66,7 @@ module CloseYourIt
         "type" => exception.class.name,
         "value" => @scrubber.scrub_message(exception.message),
         "stacktrace" => { "frames" => frames(exception.backtrace_locations) },
-        "mechanism" => { "type" => "ruby", "handled" => false }
+        "mechanism" => { "type" => "ruby", "handled" => @handled }
       }
     end
 

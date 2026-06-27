@@ -20,6 +20,9 @@ require_relative "closeyourit/monitor"
 require_relative "closeyourit/client"
 require_relative "closeyourit/rails/capture_exceptions"
 require_relative "closeyourit/rails/request_context"
+require_relative "closeyourit/rails/active_job_extension"
+require_relative "closeyourit/rails/error_subscriber"
+require_relative "closeyourit/sidekiq/error_handler"
 
 # CloseYourIt — client di telemetria (errori + statistiche di query/metodi lenti)
 # che invia gli eventi all'endpoint di ingest di CloseYourIt.
@@ -56,7 +59,7 @@ module CloseYourIt
 
     # Cattura un'eccezione e la spedisce (fire-and-forget). No-op se disabilitato,
     # se l'eccezione è esclusa o già catturata.
-    def capture_exception(exception)
+    def capture_exception(exception, handled: false, level: "error", contexts: nil)
       return nil unless enabled?
       return nil if ignored_exception?(exception)
       return nil if exception_captured?(exception)
@@ -64,7 +67,9 @@ module CloseYourIt
       mark_captured(exception)
       return nil unless sampled?
 
-      event = ErrorEvent.from_exception(exception, configuration: configuration)
+      event = ErrorEvent.from_exception(
+        exception, configuration: configuration, handled: handled, level: level, contexts: contexts
+      )
       client.capture_event(event)
     end
 

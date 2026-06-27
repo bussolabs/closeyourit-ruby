@@ -2,6 +2,9 @@
 
 require_relative "capture_exceptions"
 require_relative "request_context"
+require_relative "active_job_extension"
+require_relative "error_subscriber"
+require_relative "../sidekiq/error_handler"
 require_relative "query_source"
 require_relative "../subscribers/slow_query"
 
@@ -41,6 +44,29 @@ module CloseYourIt
             duration_ms: event.duration,
             cached: event.payload.fetch(:cached, false)
           )
+        end
+      end
+
+      # Cattura gli errori di ActiveJob/Solid Queue (around_perform).
+      initializer "closeyourit.active_job" do
+        ActiveSupport.on_load(:active_job) do
+          include CloseYourIt::Rails::ActiveJobExtension
+        end
+      end
+
+      # Cattura gli errori HANDLED riportati via Rails.error.report (Rails 7+).
+      initializer "closeyourit.error_reporter" do
+        if ::Rails.respond_to?(:error) && ::Rails.error.respond_to?(:subscribe)
+          ::Rails.error.subscribe(CloseYourIt::Rails::ErrorSubscriber.new)
+        end
+      end
+
+      # Cattura gli errori dei job Sidekiq (solo se Sidekiq è presente).
+      initializer "closeyourit.sidekiq" do
+        if defined?(::Sidekiq) && ::Sidekiq.respond_to?(:configure_server)
+          ::Sidekiq.configure_server do |sidekiq_config|
+            sidekiq_config.error_handlers << CloseYourIt::Sidekiq::ErrorHandler.new
+          end
         end
       end
     end

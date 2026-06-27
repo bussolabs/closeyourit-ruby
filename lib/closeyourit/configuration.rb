@@ -21,7 +21,8 @@ module CloseYourIt
                   :send_pii, :obfuscate_sql, :send_server_name,
                   :capture_query_bindings, :capture_method_arguments,
                   :capture_request, :request_header_allowlist,
-                  :breadcrumbs_enabled, :max_breadcrumbs, :sample_rate
+                  :breadcrumbs_enabled, :max_breadcrumbs, :sample_rate,
+                  :capture_handled_errors, :report_active_job_errors
     attr_writer :release
     attr_reader :excluded_exceptions, :filter_parameters, :scrub_message_patterns
 
@@ -55,6 +56,10 @@ module CloseYourIt
 
       # Sampling probabilistico di errori/messaggi (1.0 = invia tutto, 0.0 = niente).
       @sample_rate = 1.0
+
+      # Cattura errori handled (Rails.error.report) e degli ActiveJob/Sidekiq (oggi persi).
+      @capture_handled_errors   = true
+      @report_active_job_errors = true
 
       # Cattura valori dei parametri — opt-in, default OFF (privacy). I bind/argomenti possono contenere PII.
       @capture_query_bindings   = false
