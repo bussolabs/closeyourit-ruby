@@ -22,7 +22,9 @@ module CloseYourIt
                   :capture_query_bindings, :capture_method_arguments,
                   :capture_request, :request_header_allowlist,
                   :breadcrumbs_enabled, :max_breadcrumbs, :sample_rate,
-                  :capture_handled_errors, :report_active_job_errors
+                  :capture_handled_errors, :report_active_job_errors,
+                  :logs_enabled, :logs_sample_rate, :logs_batch_size, :logs_flush_interval,
+                  :capture_rails_logs, :logs_min_level
     attr_writer :release
     attr_reader :excluded_exceptions, :filter_parameters, :scrub_message_patterns
 
@@ -65,6 +67,15 @@ module CloseYourIt
       @capture_query_bindings   = false
       @capture_method_arguments = false
 
+      # Log strutturati (CloseYourIt.log / .logger). Master switch + sampling + batching dedicati.
+      @logs_enabled        = true
+      @logs_sample_rate    = 1.0
+      @logs_batch_size     = 50
+      @logs_flush_interval = 5
+      # Broadcast opt-in di Rails.logger → CloseYourIt.log (default OFF; spedisce solo ≥ soglia).
+      @capture_rails_logs = false
+      @logs_min_level     = :info
+
       @filter_parameters      = []
       @scrub_message_patterns = []
     end
@@ -98,9 +109,9 @@ module CloseYourIt
     # Logga i warning di configurazione (es. endpoint http://, project_id/endpoint malformati).
     # Non solleva mai: coerente con la filosofia no-op del client. Chiamata da `CloseYourIt.init`.
     def validate!
-      CloseYourIt.logger.warn(insecure_endpoint_message) if insecure_endpoint?
-      CloseYourIt.logger.warn(malformed_project_id_message) if malformed_project_id?
-      CloseYourIt.logger.warn(malformed_endpoint_message) if malformed_endpoint?
+      CloseYourIt.internal_logger.warn(insecure_endpoint_message) if insecure_endpoint?
+      CloseYourIt.internal_logger.warn(malformed_project_id_message) if malformed_project_id?
+      CloseYourIt.internal_logger.warn(malformed_endpoint_message) if malformed_endpoint?
       self
     end
 

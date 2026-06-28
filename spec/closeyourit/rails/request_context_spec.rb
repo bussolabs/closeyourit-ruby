@@ -100,6 +100,47 @@ RSpec.describe CloseYourIt::Rails::RequestContext do
     expect(described_class.new(app).call(env)).to eq([ 201, { "X" => "1" }, [ "body" ] ])
   end
 
+  describe "trace_id (correlazione log↔errori)" do
+    def capture_trace_via(app_env)
+      captured = :unset
+      app = lambda do |_e|
+        captured = CloseYourIt::Scope.current.trace_id
+        [ 200, {}, [] ]
+      end
+      described_class.new(app).call(app_env)
+      captured
+    end
+
+    it "genera un trace_id durante la richiesta" do
+      enable!
+      expect(capture_trace_via(env)).to be_a(String)
+    end
+
+    it "riusa action_dispatch.request_id se presente" do
+      enable!
+      expect(capture_trace_via(env.merge("action_dispatch.request_id" => "req-123"))).to eq("req-123")
+    end
+
+    it "riusa X-Request-Id (prima voce) se presente" do
+      enable!
+      expect(capture_trace_via(env.merge("HTTP_X_REQUEST_ID" => "req-aaa, req-bbb"))).to eq("req-aaa")
+    end
+
+    it "non setta trace_id quando la gemma è disabilitata" do
+      expect(capture_trace_via(env)).to be_nil
+    end
+
+    it "setta il trace_id anche con capture_request disabilitato (correlazione indipendente)" do
+      enable!(capture_request: false)
+      expect(capture_trace_via(env)).to be_a(String)
+    end
+
+    it "ripiega su SecureRandom se X-Request-Id è whitespace" do
+      enable!
+      expect(capture_trace_via(env.merge("HTTP_X_REQUEST_ID" => "   "))).to be_a(String)
+    end
+  end
+
   it "l'evento catturato durante la richiesta porta il request context" do
     enable!
     url = "https://closeyour.it/api/v1/projects/proj-1/events"

@@ -24,12 +24,12 @@ module CloseYourIt
         CloseYourIt.stats.increment(:sent)
       else
         CloseYourIt.stats.increment(:failed)
-        CloseYourIt.logger.warn("CloseYourIt transport: HTTP #{response.code} su #{path}")
+        CloseYourIt.internal_logger.warn("CloseYourIt transport: HTTP #{response.code} su #{path}")
       end
       response
     rescue StandardError => e
       CloseYourIt.stats.increment(:failed)
-      CloseYourIt.logger.error("CloseYourIt transport: #{e.class}: #{e.message}")
+      CloseYourIt.internal_logger.error("CloseYourIt transport: #{e.class}: #{e.message}")
       nil
     end
 

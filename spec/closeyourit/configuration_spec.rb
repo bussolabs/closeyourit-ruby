@@ -75,7 +75,7 @@ RSpec.describe CloseYourIt::Configuration do
   describe "HTTPS guard" do
     it "in production rifiuta http:// (no-op) e logga un warning" do
       fake_logger = instance_double(Logger, warn: nil)
-      allow(CloseYourIt).to receive(:logger).and_return(fake_logger)
+      allow(CloseYourIt).to receive(:internal_logger).and_return(fake_logger)
 
       config = CloseYourIt.init do |c|
         c.endpoint_url = "http://insecure.test"
@@ -90,7 +90,7 @@ RSpec.describe CloseYourIt::Configuration do
 
     it "in development consente http:// (con warning)" do
       fake_logger = instance_double(Logger, warn: nil)
-      allow(CloseYourIt).to receive(:logger).and_return(fake_logger)
+      allow(CloseYourIt).to receive(:internal_logger).and_return(fake_logger)
 
       config = CloseYourIt.init do |c|
         c.endpoint_url = "http://localhost:3011"
@@ -110,5 +110,16 @@ RSpec.describe CloseYourIt::Configuration do
       config.excluded_exceptions = [ RuntimeError, "My::Error" ]
       expect(config.excluded_exceptions).to eq(%w[RuntimeError My::Error])
     end
+  end
+
+  describe "default dei log strutturati" do
+    subject(:config) { described_class.new }
+
+    it { expect(config.logs_enabled).to be(true) }
+    it { expect(config.logs_sample_rate).to eq(1.0) }
+    it { expect(config.logs_batch_size).to eq(50) }
+    it { expect(config.logs_flush_interval).to eq(5) }
+    it { expect(config.capture_rails_logs).to be(false) }
+    it { expect(config.logs_min_level).to eq(:info) }
   end
 end

@@ -20,12 +20,12 @@ module CloseYourIt
         block.call
       rescue Exception => e # rubocop:disable Lint/RescueException
         # Mai propagare: la telemetria non deve poter crashare l'app ospite.
-        CloseYourIt.logger.error("CloseYourIt background worker: #{e.class}: #{e.message}")
+        CloseYourIt.internal_logger.error("CloseYourIt background worker: #{e.class}: #{e.message}")
       end
 
       unless accepted
         CloseYourIt.stats.increment(:dropped)
-        CloseYourIt.logger.warn("CloseYourIt background worker: coda piena, evento scartato")
+        CloseYourIt.internal_logger.warn("CloseYourIt background worker: coda piena, evento scartato")
       end
 
       accepted

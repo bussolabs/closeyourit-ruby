@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "securerandom"
+
 module CloseYourIt
   module Rails
     # Rack middleware: popola lo Scope con il contesto HTTP della richiesta (method/url/header)
@@ -15,7 +17,11 @@ module CloseYourIt
       end
 
       def call(env)
-        CloseYourIt::Scope.current.request = build_request(env) if active?
+        if enabled?
+          # trace_id sempre (correlazione log↔errori), anche con capture_request OFF.
+          CloseYourIt::Scope.current.trace_id = trace_id_for(env)
+          CloseYourIt::Scope.current.request = build_request(env) if CloseYourIt.configuration.capture_request
+        end
         @app.call(env)
       ensure
         CloseYourIt::Scope.reset!
@@ -23,10 +29,18 @@ module CloseYourIt
 
       private
 
-      def active?
-        CloseYourIt.enabled? && CloseYourIt.configuration.capture_request
+      def enabled?
+        CloseYourIt.enabled?
       rescue StandardError
         false
+      end
+
+      # Riusa il request id di Rails/Rack se presente (stessa correlazione dei log applicativi),
+      # altrimenti ne genera uno.
+      def trace_id_for(env)
+        env["action_dispatch.request_id"] ||
+          env["HTTP_X_REQUEST_ID"].to_s.split(",").first&.strip.then { |id| id&.empty? ? nil : id } ||
+          SecureRandom.uuid
       end
 
       # Forma `request` Sentry. URL senza query string; header solo dall'allowlist (mai

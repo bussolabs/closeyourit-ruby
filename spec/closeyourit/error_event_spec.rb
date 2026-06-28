@@ -30,6 +30,14 @@ RSpec.describe CloseYourIt::ErrorEvent do
     expect(payload["sdk"]).to include("name" => "closeyourit-ruby")
   end
 
+  it "include il trace_id dello scope corrente (correlazione coi log)" do
+    CloseYourIt::Scope.current.trace_id = "trace-9"
+    event = described_class.from_exception(StandardError.new("x"), configuration: config).to_h
+    expect(event["trace_id"]).to eq("trace-9")
+  ensure
+    CloseYourIt.clear_scope
+  end
+
   it "mette l'eccezione principale come ULTIMA di exception.values" do
     main = payload["exception"]["values"].last
     expect(main["type"]).to eq("RuntimeError")

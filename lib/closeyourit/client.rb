@@ -24,6 +24,20 @@ module CloseYourIt
       payload
     end
 
+    # Invia un batch di log come ARRAY a /logs (l'endpoint accetta singolo o array). before_send è
+    # applicato a ciascun payload; quelli scartati (nil) non vengono inviati.
+    def flush_logs(events)
+      return nil if events.nil? || events.empty?
+
+      payloads = events.map(&:to_h)
+      payloads = payloads.filter_map { |payload| @configuration.before_send.call(payload) } if @configuration.before_send
+      return nil if payloads.empty?
+
+      path = events.first.ingest_path(@configuration.project_id)
+      @worker.perform { @transport.send_event(payloads, path: path) }
+      payloads
+    end
+
     def shutdown
       @worker.shutdown
     end

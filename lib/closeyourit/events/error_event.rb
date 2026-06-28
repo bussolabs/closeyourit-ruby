@@ -29,6 +29,8 @@ module CloseYourIt
         "timestamp" => @occurred_at,
         "platform" => "ruby",
         "level" => @level,
+        # Correlazione log↔errori: stesso trace_id dei log della medesima richiesta (popolato dallo Scope).
+        "trace_id" => CloseYourIt::Scope.current.trace_id,
         "environment" => environment,
         "release" => @configuration.release,
         "server_name" => server_name,

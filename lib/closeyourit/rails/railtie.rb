@@ -6,6 +6,7 @@ require_relative "active_job_extension"
 require_relative "error_subscriber"
 require_relative "../sidekiq/error_handler"
 require_relative "query_source"
+require_relative "log_broadcast"
 require_relative "../subscribers/slow_query"
 
 module CloseYourIt
@@ -58,6 +59,15 @@ module CloseYourIt
       initializer "closeyourit.error_reporter" do
         if ::Rails.respond_to?(:error) && ::Rails.error.respond_to?(:subscribe)
           ::Rails.error.subscribe(CloseYourIt::Rails::ErrorSubscriber.new)
+        end
+      end
+
+      # Broadcast opt-in di Rails.logger → CloseYourIt.log (config.capture_rails_logs, default OFF).
+      # Spedisce solo i log dell'app ≥ logs_min_level. Richiede BroadcastLogger (Rails 7.1+).
+      initializer "closeyourit.capture_rails_logs" do
+        config = CloseYourIt.configuration
+        if config.capture_rails_logs && ::Rails.logger.respond_to?(:broadcast_to)
+          ::Rails.logger.broadcast_to(CloseYourIt::Rails::LogBroadcast.new(config.logs_min_level))
         end
       end
 

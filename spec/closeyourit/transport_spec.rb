@@ -37,7 +37,7 @@ RSpec.describe CloseYourIt::Transport do
 
   it "non solleva su errore di rete e ritorna nil" do
     stub_request(:post, url).to_timeout
-    allow(CloseYourIt.logger).to receive(:error)
+    allow(CloseYourIt.internal_logger).to receive(:error)
 
     result = nil
     expect { result = transport.send_event({ "level" => "error" }, path: path) }.not_to raise_error
@@ -46,11 +46,11 @@ RSpec.describe CloseYourIt::Transport do
 
   it "incrementa stats.failed e logga su errore di rete" do
     stub_request(:post, url).to_timeout
-    allow(CloseYourIt.logger).to receive(:error)
+    allow(CloseYourIt.internal_logger).to receive(:error)
 
     expect { transport.send_event({ "level" => "error" }, path: path) }
       .to change { CloseYourIt.stats[:failed] }.by(1)
-    expect(CloseYourIt.logger).to have_received(:error)
+    expect(CloseYourIt.internal_logger).to have_received(:error)
   end
 
   it "incrementa stats.sent su risposta 2xx" do
@@ -62,11 +62,11 @@ RSpec.describe CloseYourIt::Transport do
 
   it "logga a warn e incrementa stats.failed su status non-2xx" do
     stub_request(:post, url).to_return(status: 401)
-    allow(CloseYourIt.logger).to receive(:warn)
+    allow(CloseYourIt.internal_logger).to receive(:warn)
 
     expect { transport.send_event({ "level" => "error" }, path: path) }
       .to change { CloseYourIt.stats[:failed] }.by(1)
-    expect(CloseYourIt.logger).to have_received(:warn).with(/HTTP 401/)
+    expect(CloseYourIt.internal_logger).to have_received(:warn).with(/HTTP 401/)
   end
 
   it "segue il redirect apex → www preservando POST, body e Bearer" do
@@ -87,7 +87,7 @@ RSpec.describe CloseYourIt::Transport do
     www = "https://www.closeyour.it#{path}"
     stub_request(:post, url).to_return(status: 301, headers: { "Location" => www })
     stub_request(:post, www).to_return(status: 301, headers: { "Location" => url })
-    allow(CloseYourIt.logger).to receive(:warn)
+    allow(CloseYourIt.internal_logger).to receive(:warn)
 
     result = nil
     expect { result = transport.send_event({ "level" => "error" }, path: path) }.not_to raise_error

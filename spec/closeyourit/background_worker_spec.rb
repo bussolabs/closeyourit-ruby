@@ -12,10 +12,10 @@ RSpec.describe CloseYourIt::BackgroundWorker do
 
   it "non solleva se il blocco fallisce (rescue + log)" do
     worker = described_class.new(threads: 0, max_queue: 30)
-    allow(CloseYourIt.logger).to receive(:error)
+    allow(CloseYourIt.internal_logger).to receive(:error)
 
     expect { worker.perform { raise "boom" } }.not_to raise_error
-    expect(CloseYourIt.logger).to have_received(:error).with(/boom/)
+    expect(CloseYourIt.internal_logger).to have_received(:error).with(/boom/)
   end
 
   it "configura la coda con fallback_policy :discard (threads > 0)" do
@@ -34,7 +34,7 @@ RSpec.describe CloseYourIt::BackgroundWorker do
 
   it "scarta, logga a warn e incrementa stats.dropped a coda piena" do
     worker = described_class.new(threads: 1, max_queue: 1)
-    allow(CloseYourIt.logger).to receive(:warn)
+    allow(CloseYourIt.internal_logger).to receive(:warn)
     gate = Queue.new
 
     worker.perform { gate.pop } # occupa l'unico thread finché non sblocchiamo
@@ -43,7 +43,7 @@ RSpec.describe CloseYourIt::BackgroundWorker do
     expect { @rejected = worker.perform { :overflow } }
       .to change { CloseYourIt.stats[:dropped] }.by(1)
     expect(@rejected).to be(false)
-    expect(CloseYourIt.logger).to have_received(:warn).with(/coda piena/)
+    expect(CloseYourIt.internal_logger).to have_received(:warn).with(/coda piena/)
   ensure
     gate << :go
     worker&.shutdown

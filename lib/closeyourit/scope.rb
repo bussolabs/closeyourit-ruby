@@ -34,7 +34,7 @@ module CloseYourIt
       end
     end
 
-    attr_accessor :request
+    attr_accessor :request, :trace_id
     attr_reader :user, :tags, :extra, :contexts, :breadcrumbs
 
     def initialize
@@ -71,6 +71,7 @@ module CloseYourIt
       @extra       = {}
       @contexts    = {}
       @request     = nil
+      @trace_id    = nil
       @breadcrumbs = BreadcrumbBuffer.new(CloseYourIt.configuration.max_breadcrumbs)
     end
 

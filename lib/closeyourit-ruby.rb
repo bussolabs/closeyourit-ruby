@@ -15,12 +15,16 @@ require_relative "closeyourit/events/error_event"
 require_relative "closeyourit/events/message_event"
 require_relative "closeyourit/events/slow_query_event"
 require_relative "closeyourit/events/slow_method_event"
+require_relative "closeyourit/events/log_event"
+require_relative "closeyourit/log_device"
+require_relative "closeyourit/log_buffer"
 require_relative "closeyourit/subscribers/slow_query"
 require_relative "closeyourit/instrumenter"
 require_relative "closeyourit/monitor"
 require_relative "closeyourit/client"
 require_relative "closeyourit/rails/capture_exceptions"
 require_relative "closeyourit/rails/request_context"
+require_relative "closeyourit/rails/log_broadcast"
 require_relative "closeyourit/rails/active_job_extension"
 require_relative "closeyourit/rails/error_subscriber"
 require_relative "closeyourit/sidekiq/error_handler"
@@ -41,8 +45,10 @@ module CloseYourIt
     def init
       @configuration = Configuration.new
       @client = nil
+      @log_buffer = nil
       yield(@configuration) if block_given?
       @configuration.validate!
+      register_shutdown_flush
       @configuration
     end
 
@@ -139,11 +145,46 @@ module CloseYourIt
       )
     end
 
-    def logger
-      @logger ||= default_logger
+    # Logger interno della gemma (warning/errori diagnostici su stdout). NON è il logging applicativo:
+    # per spedire log strutturati a CloseYourIt usa `CloseYourIt.log` / `CloseYourIt.logger`.
+    def internal_logger
+      @internal_logger ||= default_internal_logger
     end
 
-    attr_writer :logger
+    attr_writer :internal_logger
+
+    # Logger applicativo Logger-compatibile: inoltra ogni messaggio a `CloseYourIt.log` (→ ingest /logs).
+    #   CloseYourIt.logger.info("ordine creato", order_id: 1)
+    def logger
+      @app_logger ||= LogDevice.new
+    end
+
+    # Costruisce e bufferizza una voce di log strutturata (batch verso /logs, fire-and-forget). Il
+    # `level` è normalizzato ai livelli canonici (`:warn`→`warning`, downcase; ignoto→`info`). `logger`
+    # opzionale = nome della sorgente del log.
+    #   CloseYourIt.log(:info, "ordine creato", order_id: 1)
+    #   CloseYourIt.log(:warn, "retry", logger: "payments", attempt: 3)
+    def log(level, message, logger: nil, **attributes)
+      return nil unless logs_enabled?
+      return nil unless logs_sampled?
+
+      event = LogEvent.new(message, level: level, attributes: attributes,
+                                    logger: logger, configuration: configuration)
+      log_buffer.add(event)
+      nil
+    end
+
+    # Vero se i log sono attivi (master switch + flag): usato da LogDevice per NON valutare i block
+    # costosi (`logger.debug { dump }`) quando il logging è spento.
+    def logs_active?
+      logs_enabled?
+    end
+
+    # Forza l'invio dei log bufferizzati (chiamato anche allo shutdown del processo).
+    def flush_logs
+      @log_buffer&.flush
+      nil
+    end
 
     # Contatori diagnostici del client (accodati/scartati/spediti/falliti).
     #   CloseYourIt.stats.to_h # => { enqueued: …, dropped: …, sent: …, failed: … }
@@ -155,6 +196,33 @@ module CloseYourIt
 
     def client
       @client ||= Client.new(configuration)
+    end
+
+    def log_buffer
+      @log_buffer ||= LogBuffer.new(client: client, configuration: configuration)
+    end
+
+    # I log seguono il master switch del client + il proprio flag dedicato.
+    def logs_enabled?
+      enabled? && configuration.logs_enabled
+    end
+
+    # Sampling indipendente dei log (1.0 = tutti, 0.0 = nessuno).
+    def logs_sampled?
+      rate = configuration.logs_sample_rate.to_f
+      return true if rate >= 1.0
+      return false if rate <= 0.0
+
+      Random.rand < rate
+    end
+
+    # Allo shutdown del processo svuota i log bufferizzati e ferma il timer (una sola registrazione).
+    # Senza, i log sotto-batch dei processi brevi (rake/CLI) andrebbero persi all'uscita.
+    def register_shutdown_flush
+      return if @shutdown_registered
+
+      @shutdown_registered = true
+      at_exit { @log_buffer&.shutdown }
     end
 
     def ignored_exception?(exception)
@@ -187,7 +255,7 @@ module CloseYourIt
       exception.instance_variable_set(CAPTURED_FLAG, true)
     end
 
-    def default_logger
+    def default_internal_logger
       ::Logger.new($stdout).tap do |l|
         l.level = ::Logger::WARN
         l.progname = "CloseYourIt"
