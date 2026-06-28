@@ -7,6 +7,8 @@ e il progetto aderisce al [Semantic Versioning](https://semver.org/lang/it/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-28
+
 ### Aggiunto
 - `CloseYourIt.stats`: contatori diagnostici thread-safe (`enqueued`, `dropped`, `sent`,
   `failed`) per rendere visibili i fallimenti silenziosi del trasporto fire-and-forget.
