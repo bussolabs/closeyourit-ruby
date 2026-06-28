@@ -41,8 +41,8 @@ RSpec.describe CloseYourIt::LogEvent do
 
   it "scruba le chiavi sensibili dentro array annidati negli attributes" do
     event = described_class.new("x", level: :info,
-                                attributes: { items: [{ token: "t", ok: "v" }] }, configuration: config)
-    expect(event.to_h["attributes"]["items"]).to eq([{ "token" => "[FILTERED]", "ok" => "v" }])
+                                attributes: { items: [ { token: "t", ok: "v" } ] }, configuration: config)
+    expect(event.to_h["attributes"]["items"]).to eq([ { "token" => "[FILTERED]", "ok" => "v" } ])
   end
 
   it "ingest_path punta a /logs" do
