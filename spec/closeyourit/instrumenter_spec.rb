@@ -74,6 +74,26 @@ RSpec.describe CloseYourIt::Monitor do
     }
   end
 
+  it "preserva il blocco passato al metodo e non invia sotto soglia" do
+    CloseYourIt.init do |c|
+      c.endpoint_url = "https://closeyour.it"
+      c.token = "tok"
+      c.project_id = "proj-1"
+      c.async_threads = 0
+      c.slow_method_threshold_ms = 1_000_000
+    end
+    stub = stub_request(:post, url)
+
+    klass = Class.new do
+      include CloseYourIt::Monitor
+      def each_double(values, &block) = values.map(&block)
+      monitor :each_double
+    end
+
+    expect(klass.new.each_double([ 1, 2 ]) { |n| n * 2 }).to eq([ 2, 4 ])
+    expect(stub).not_to have_been_requested
+  end
+
   it "include arguments (posizionali + kwargs scrubbed) quando capture_method_arguments è ON" do
     CloseYourIt.init do |c|
       c.endpoint_url = "https://closeyour.it"

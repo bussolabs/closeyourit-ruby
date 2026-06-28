@@ -10,4 +10,5 @@ group :development, :test do
   gem "webmock", "~> 3.24"
   gem "simplecov", "~> 0.22", require: false
   gem "rubocop-rails-omakase", require: false
+  gem "bundler-audit", "~> 0.9", require: false
 end

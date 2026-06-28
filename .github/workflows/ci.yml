@@ -19,4 +19,7 @@ jobs:
           ruby-version: .ruby-version
           bundler-cache: true
       - run: bundle exec rubocop
+      # Gemfile.lock non è versionato: lo generiamo per dare a bundler-audit qualcosa da analizzare.
+      - run: bundle lock
+      - run: bundle exec bundler-audit check --update
       - run: COVERAGE_ENFORCE=1 bundle exec rspec

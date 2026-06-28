@@ -19,7 +19,8 @@ module CloseYourIt
       return nil if payload.nil?
 
       path = event.ingest_path(@configuration.project_id)
-      @worker.perform { @transport.send_event(payload, path: path) }
+      accepted = @worker.perform { @transport.send_event(payload, path: path) }
+      CloseYourIt.stats.increment(:enqueued) if accepted
       payload
     end
 

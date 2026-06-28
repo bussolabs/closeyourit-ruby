@@ -43,4 +43,29 @@ RSpec.describe CloseYourIt::Transport do
     expect { result = transport.send_event({ "level" => "error" }, path: path) }.not_to raise_error
     expect(result).to be_nil
   end
+
+  it "incrementa stats.failed e logga su errore di rete" do
+    stub_request(:post, url).to_timeout
+    allow(CloseYourIt.logger).to receive(:error)
+
+    expect { transport.send_event({ "level" => "error" }, path: path) }
+      .to change { CloseYourIt.stats[:failed] }.by(1)
+    expect(CloseYourIt.logger).to have_received(:error)
+  end
+
+  it "incrementa stats.sent su risposta 2xx" do
+    stub_request(:post, url).to_return(status: 202)
+
+    expect { transport.send_event({ "level" => "error" }, path: path) }
+      .to change { CloseYourIt.stats[:sent] }.by(1)
+  end
+
+  it "logga a warn e incrementa stats.failed su status non-2xx" do
+    stub_request(:post, url).to_return(status: 401)
+    allow(CloseYourIt.logger).to receive(:warn)
+
+    expect { transport.send_event({ "level" => "error" }, path: path) }
+      .to change { CloseYourIt.stats[:failed] }.by(1)
+    expect(CloseYourIt.logger).to have_received(:warn).with(/HTTP 401/)
+  end
 end

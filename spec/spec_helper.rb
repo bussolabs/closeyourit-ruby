@@ -22,6 +22,7 @@ RSpec.configure do |config|
   config.before do
     CloseYourIt.instance_variable_set(:@configuration, nil)
     CloseYourIt.instance_variable_set(:@client, nil)
+    CloseYourIt.stats.reset!
     CloseYourIt::Scope.reset!
   end
 end

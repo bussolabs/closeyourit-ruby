@@ -7,6 +7,7 @@ require_relative "closeyourit/configuration"
 require_relative "closeyourit/breadcrumb"
 require_relative "closeyourit/scope"
 require_relative "closeyourit/scrubber"
+require_relative "closeyourit/stats"
 require_relative "closeyourit/background_worker"
 require_relative "closeyourit/transport"
 require_relative "closeyourit/event"
@@ -143,6 +144,12 @@ module CloseYourIt
     end
 
     attr_writer :logger
+
+    # Contatori diagnostici del client (accodati/scartati/spediti/falliti).
+    #   CloseYourIt.stats.to_h # => { enqueued: …, dropped: …, sent: …, failed: … }
+    def stats
+      @stats ||= Stats.new
+    end
 
     private
 

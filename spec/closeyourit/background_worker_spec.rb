@@ -25,4 +25,27 @@ RSpec.describe CloseYourIt::BackgroundWorker do
   ensure
     worker&.shutdown
   end
+
+  it "ritorna true quando il blocco viene accettato (sincrono)" do
+    worker = described_class.new(threads: 0, max_queue: 30)
+
+    expect(worker.perform { :ok }).to be(true)
+  end
+
+  it "scarta, logga a warn e incrementa stats.dropped a coda piena" do
+    worker = described_class.new(threads: 1, max_queue: 1)
+    allow(CloseYourIt.logger).to receive(:warn)
+    gate = Queue.new
+
+    worker.perform { gate.pop } # occupa l'unico thread finché non sblocchiamo
+    worker.perform { :queued }  # riempie l'unico slot di coda
+
+    expect { @rejected = worker.perform { :overflow } }
+      .to change { CloseYourIt.stats[:dropped] }.by(1)
+    expect(@rejected).to be(false)
+    expect(CloseYourIt.logger).to have_received(:warn).with(/coda piena/)
+  ensure
+    gate << :go
+    worker&.shutdown
+  end
 end

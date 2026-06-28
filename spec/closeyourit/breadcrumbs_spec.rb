@@ -33,6 +33,20 @@ RSpec.describe "Breadcrumbs" do
       buffer.add(CloseYourIt::Breadcrumb.new(message: "a"))
       expect(buffer).to be_empty
     end
+
+    it "con capacità negativa è no-op (size/empty?)" do
+      buffer = described_class.new(-3)
+      buffer.add(CloseYourIt::Breadcrumb.new(message: "a"))
+      expect(buffer).to be_empty
+      expect(buffer.size).to eq(0)
+    end
+
+    it "to_a serializza le briciole in hash" do
+      buffer = described_class.new(5)
+      buffer.add(CloseYourIt::Breadcrumb.new(message: "a", category: "ui"))
+      expect(buffer.to_a).to all(be_a(Hash))
+      expect(buffer.to_a.first).to include("message" => "a", "category" => "ui")
+    end
   end
 
   describe CloseYourIt::Breadcrumb do
@@ -41,6 +55,20 @@ RSpec.describe "Breadcrumbs" do
       expect(crumb).to include("timestamp", "type" => "default", "category" => "query",
                                "level" => "info", "message" => "hi")
       expect(crumb).not_to have_key("data")
+    end
+
+    it "mantiene data valorizzato e rispetta type/level/timestamp custom" do
+      crumb = described_class.new(
+        message: "click", type: "user", level: "warning",
+        timestamp: "2026-01-01T00:00:00Z", data: { "x" => 1 }
+      ).to_h
+      expect(crumb).to include("type" => "user", "level" => "warning",
+                               "timestamp" => "2026-01-01T00:00:00Z", "data" => { "x" => 1 })
+    end
+
+    it "omette le chiavi nil (es. category assente)" do
+      crumb = described_class.new(message: "hi").to_h
+      expect(crumb).not_to have_key("category")
     end
   end
 

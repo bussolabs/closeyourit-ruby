@@ -16,8 +16,16 @@ module CloseYourIt
     end
 
     def send_event(payload, path:)
-      post(payload, path)
+      response = post(payload, path)
+      if response.is_a?(Net::HTTPSuccess)
+        CloseYourIt.stats.increment(:sent)
+      else
+        CloseYourIt.stats.increment(:failed)
+        CloseYourIt.logger.warn("CloseYourIt transport: HTTP #{response.code} su #{path}")
+      end
+      response
     rescue StandardError => e
+      CloseYourIt.stats.increment(:failed)
       CloseYourIt.logger.error("CloseYourIt transport: #{e.class}: #{e.message}")
       nil
     end

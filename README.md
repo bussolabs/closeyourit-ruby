@@ -167,6 +167,23 @@ Privacy-by-default (`send_pii = false`). In sintesi:
 > Rischio residuo: `exception.value` e i nomi tabella/colonna nello SQL possono contenere dati di
 > dominio. Usa `before_send`/`scrub_message_patterns` per azzerarli. Dettaglio in [`PDR.md` §9](PDR.md).
 
+## Diagnostica
+
+Il trasporto è fire-and-forget: non solleva mai e non blocca la request. Per non lasciare
+fallimenti silenziosi, ogni risposta HTTP non-2xx (es. `401` token errato, `404` progetto
+inesistente) viene loggata a `warn`, così come gli eventi scartati a coda piena. I contatori
+sono ispezionabili a runtime:
+
+```ruby
+CloseYourIt.stats.to_h
+# => { enqueued: 128, dropped: 0, sent: 126, failed: 2 }
+```
+
+- `enqueued` — eventi accettati per l'invio
+- `dropped` — scartati perché la coda async era piena (mai backpressure)
+- `sent` — risposta HTTP 2xx
+- `failed` — errore di rete o status non-2xx (vedi i log a `warn`)
+
 ## Sviluppo
 
 ```bash

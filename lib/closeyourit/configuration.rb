@@ -95,9 +95,12 @@ module CloseYourIt
       true
     end
 
-    # Logga i warning di configurazione (es. endpoint http://). Chiamata da `CloseYourIt.init`.
+    # Logga i warning di configurazione (es. endpoint http://, project_id/endpoint malformati).
+    # Non solleva mai: coerente con la filosofia no-op del client. Chiamata da `CloseYourIt.init`.
     def validate!
       CloseYourIt.logger.warn(insecure_endpoint_message) if insecure_endpoint?
+      CloseYourIt.logger.warn(malformed_project_id_message) if malformed_project_id?
+      CloseYourIt.logger.warn(malformed_endpoint_message) if malformed_endpoint?
       self
     end
 
@@ -133,9 +136,33 @@ module CloseYourIt
       nil
     end
 
+    UUID_FORMAT = /\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z/i
+
     def insecure_endpoint?
       uri = parsed_endpoint
       !uri.nil? && uri.scheme != "https"
+    end
+
+    # Avvisa se il project_id è valorizzato ma non sembra uno UUID (l'errore tipico è incollare
+    # uno slug/nome al posto dell'id). Non blocca: il server è l'autorità sulla validità.
+    def malformed_project_id?
+      !blank?(project_id) && !UUID_FORMAT.match?(project_id.to_s)
+    end
+
+    def malformed_project_id_message
+      "CloseYourIt: project_id (#{project_id}) non ha forma UUID — verifica di aver copiato l'id corretto."
+    end
+
+    # Avvisa se endpoint_url è valorizzato ma non parsabile o privo di host.
+    def malformed_endpoint?
+      return false if blank?(endpoint_url)
+
+      uri = parsed_endpoint
+      uri.nil? || blank?(uri.host)
+    end
+
+    def malformed_endpoint_message
+      "CloseYourIt: endpoint_url (#{endpoint_url}) non è un URL valido (host mancante)."
     end
 
     def insecure_endpoint_message

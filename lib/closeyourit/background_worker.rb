@@ -13,13 +13,22 @@ module CloseYourIt
       @executor = build_executor(threads.to_i, max_queue)
     end
 
+    # Ritorna true se l'evento è stato accettato (o eseguito sincrono), false se scartato
+    # perché la coda era piena (`fallback_policy: :discard`). Mai backpressure sulla request.
     def perform(&block)
-      @executor.post do
+      accepted = @executor.post do
         block.call
       rescue Exception => e # rubocop:disable Lint/RescueException
         # Mai propagare: la telemetria non deve poter crashare l'app ospite.
         CloseYourIt.logger.error("CloseYourIt background worker: #{e.class}: #{e.message}")
       end
+
+      unless accepted
+        CloseYourIt.stats.increment(:dropped)
+        CloseYourIt.logger.warn("CloseYourIt background worker: coda piena, evento scartato")
+      end
+
+      accepted
     end
 
     def shutdown(timeout = 1)
