@@ -68,4 +68,30 @@ RSpec.describe CloseYourIt::Transport do
       .to change { CloseYourIt.stats[:failed] }.by(1)
     expect(CloseYourIt.logger).to have_received(:warn).with(/HTTP 401/)
   end
+
+  it "segue il redirect apex → www preservando POST, body e Bearer" do
+    www = "https://www.closeyour.it#{path}"
+    stub_request(:post, url).to_return(status: 301, headers: { "Location" => www })
+    final = stub_request(:post, www).to_return(status: 202, body: '{"id":"e1"}')
+
+    transport.send_event({ "level" => "error" }, path: path)
+
+    expect(final).to have_been_requested
+    expect(WebMock).to have_requested(:post, www).with(
+      headers: { "Authorization" => "Bearer tok", "Content-Type" => "application/json" },
+      body: { "level" => "error" }.to_json
+    )
+  end
+
+  it "si ferma dopo MAX_REDIRECTS — niente loop infinito su redirect ciclico" do
+    www = "https://www.closeyour.it#{path}"
+    stub_request(:post, url).to_return(status: 301, headers: { "Location" => www })
+    stub_request(:post, www).to_return(status: 301, headers: { "Location" => url })
+    allow(CloseYourIt.logger).to receive(:warn)
+
+    result = nil
+    expect { result = transport.send_event({ "level" => "error" }, path: path) }.not_to raise_error
+    expect(result).to be_a(Net::HTTPRedirection)
+    expect(a_request(:post, www)).to have_been_made
+  end
 end

@@ -45,7 +45,7 @@ In CloseYourIt, area **Member → Project → tokens**, crea un token: ottieni i
 ```ruby
 # config/initializers/closeyourit.rb
 CloseYourIt.init do |c|
-  c.endpoint_url = ENV["CLOSEYOURIT_ENDPOINT_URL"]   # es. https://closeyour.it
+  c.endpoint_url = ENV["CLOSEYOURIT_ENDPOINT_URL"]   # es. https://www.closeyour.it (host canonico)
   c.token        = ENV["CLOSEYOURIT_TOKEN"]          # Bearer secret del Projects::Token
   c.project_id   = ENV["CLOSEYOURIT_PROJECT_ID"]     # UUID del progetto su CloseYourIt
   c.environment  = Rails.env
@@ -54,6 +54,10 @@ end
 
 **Senza `endpoint_url` / `token` / `project_id` la gemma è no-op** (nessun invio, nessun overhead). In
 `production` un `endpoint_url` `http://` viene rifiutato (no-op + warning): il token viaggerebbe in chiaro.
+
+> **Endpoint:** usa l'host canonico **`https://www.closeyour.it`**. La gemma segue fino a 2 redirect su POST
+> (preservando metodo e body), quindi anche l'apex `https://closeyour.it` (301 → www) funziona — ma puntare
+> direttamente a www risparmia un hop per ogni evento.
 
 ### Opzioni
 
