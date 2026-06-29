@@ -4,6 +4,11 @@ module CloseYourIt
   # Compone Transport + BackgroundWorker: applica `before_send` e dispatcha
   # l'invio in modo fire-and-forget.
   class Client
+    # Tetto di log per singola richiesta a /logs. Il backend rifiuta un batch oltre questo limite
+    # (413 R413-LOG-002) scartando l'INTERA richiesta — e il buffer è già stato drenato → log persi.
+    # Deve restare ≤ del limite server (LOGS_MAX_BATCH backend = 1000). Vedi #flush_logs.
+    LOGS_MAX_BATCH = 1000
+
     def initialize(configuration)
       @configuration = configuration
       @transport = Transport.new(configuration)
@@ -25,7 +30,10 @@ module CloseYourIt
     end
 
     # Invia un batch di log come ARRAY a /logs (l'endpoint accetta singolo o array). before_send è
-    # applicato a ciascun payload; quelli scartati (nil) non vengono inviati.
+    # applicato a ciascun payload; quelli scartati (nil) non vengono inviati. I payload oltre
+    # LOGS_MAX_BATCH sono spezzati in più POST sequenziali (un chunk = un POST), così un flush grande
+    # non viene rigettato in blocco dal backend e perso — vedi R3 / LOGS_MAX_BATCH. Un flush entro il
+    # limite resta un singolo POST.
     def flush_logs(events)
       return nil if events.nil? || events.empty?
 
@@ -34,7 +42,9 @@ module CloseYourIt
       return nil if payloads.empty?
 
       path = events.first.ingest_path(@configuration.project_id)
-      @worker.perform { @transport.send_event(payloads, path: path) }
+      payloads.each_slice(LOGS_MAX_BATCH) do |chunk|
+        @worker.perform { @transport.send_event(chunk, path: path) }
+      end
       payloads
     end
 
