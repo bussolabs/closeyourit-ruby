@@ -6,10 +6,14 @@ module CloseYourIt
   class Scrubber
     FILTERED = "[FILTERED]"
 
-    # Token di chiavi sempre redatti (match per sottostringa, normalizzato).
+    # Token di chiavi sempre redatti (match per sottostringa, normalizzato). Allineato 1:1 al regex
+    # di backend e client Dart (parità client-side) — vedi Errors/Logs::Ingest::Normalize::SENSITIVE_KEY:
+    #   /pass|secret|token|api[_-]?key|apikey|authorization|cookie|csrf|credit|card|cvv|ssn|iban/i
+    # `pass` copre password/passwd/pass_code/passkey/passphrase; `cookie` copre set-cookie;
+    # `credit`+`card` coprono credit_card. La lista letterale precedente ometteva i `pass*` bare → leak.
     DENYLIST = %w[
-      password passwd secret token api_key apikey authorization
-      cookie set-cookie csrf credit_card card cvv ssn iban
+      pass secret token api_key apikey authorization
+      cookie csrf credit card cvv ssn iban
     ].freeze
 
     STRING_LITERAL = /'(?:[^']|'')*'/

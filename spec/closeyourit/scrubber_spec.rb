@@ -39,6 +39,43 @@ RSpec.describe CloseYourIt::Scrubber do
     end
   end
 
+  # R1 — la denylist deve coprire gli stessi token del regex di backend e client Dart:
+  #   /pass|secret|token|api[_-]?key|apikey|authorization|cookie|csrf|credit|card|cvv|ssn|iban/i
+  # In particolare i `pass*` (pass, pass_code, passkey, passphrase) che la lista letterale ometteva.
+  describe "denylist parity (R1) — token del regex backend/Dart" do
+    sensitive = %w[
+      pass pass_code passkey passphrase password passwd
+      secret token api_key apiKey x-api-key
+      authorization cookie set-cookie csrf
+      credit credit_card card cvv ssn iban
+    ]
+
+    sensitive.each do |key|
+      it "redige la chiave sensibile #{key.inspect}" do
+        expect(scrubber.filter_params(key => "v")).to eq(key => "[FILTERED]")
+      end
+    end
+
+    %w[message user_id name].each do |key|
+      it "NON redige la chiave benigna #{key.inspect}" do
+        expect(scrubber.filter_params(key => "v")).to eq(key => "v")
+      end
+    end
+
+    it "redige i `pass*` anche annidati e dentro gli array" do
+      out = scrubber.filter_params(
+        "passphrase" => "p",
+        "nested" => { "passkey" => "k", "ok" => 1 },
+        "list" => [ { "pass" => "x" } ]
+      )
+      expect(out).to eq(
+        "passphrase" => "[FILTERED]",
+        "nested" => { "passkey" => "[FILTERED]", "ok" => 1 },
+        "list" => [ { "pass" => "[FILTERED]" } ]
+      )
+    end
+  end
+
   describe "#obfuscate_sql" do
     it "maschera literal stringa e numerici quando attivo" do
       sql = "SELECT * FROM users WHERE email = 'a@b.com' AND age = 42"
