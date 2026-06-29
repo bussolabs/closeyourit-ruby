@@ -31,6 +31,38 @@ RSpec.describe CloseYourIt::Scope do
     end
   end
 
+  # R2 — il backend NON ri-scruba tags/extra/contexts (Errors::Ingest::Normalize li conserva verbatim):
+  # senza scrub client-side una chiave sensibile lì colerebbe senza rete di sicurezza server-side.
+  describe "scrub di tags/extra/contexts (R2)" do
+    it "redige le chiavi sensibili in tags/extra/contexts, preservando le altre" do
+      scope.set_tag("password", "x")
+      scope.set_tag("plan", "pro")
+      scope.set_extra("api_key", "secret")
+      scope.set_extra("order_id", 42)
+      scope.set_context("auth", { token: "abc", scheme: "bearer" })
+
+      hash = scope.to_event_hash
+      expect(hash["tags"]).to eq("password" => "[FILTERED]", "plan" => "pro")
+      expect(hash["extra"]).to eq("api_key" => "[FILTERED]", "order_id" => 42)
+      expect(hash["contexts"]).to eq("auth" => { "token" => "[FILTERED]", "scheme" => "bearer" })
+    end
+
+    it "preserva la struttura di un context (chiave non sensibile), scrubando solo i valori sotto chiavi sensibili" do
+      scope.set_context("runtime", { name: "ruby", version: "4.0" })
+      scope.set_context("prefs", { passphrase: "p", note: "ok" })
+
+      contexts = scope.to_event_hash["contexts"]
+      expect(contexts["runtime"]).to eq("name" => "ruby", "version" => "4.0")
+      expect(contexts["prefs"]).to eq("passphrase" => "[FILTERED]", "note" => "ok")
+    end
+
+    it "redige l'intero sotto-albero quando la chiave del context è essa stessa sensibile" do
+      scope.set_context("credit_card", { number: "x", expiry: "y" })
+
+      expect(scope.to_event_hash["contexts"]).to eq("credit_card" => "[FILTERED]")
+    end
+  end
+
   describe "#serialize_user — PII gated" do
     it "tiene solo id quando send_pii è false (default)" do
       scope.set_user(id: 7, email: "a@b.com", ip_address: "1.2.3.4")

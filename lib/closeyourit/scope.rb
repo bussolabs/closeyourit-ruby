@@ -76,19 +76,30 @@ module CloseYourIt
     end
 
     # Sottoinsieme non vuoto in forma evento Sentry (user/tags/extra/contexts/request),
-    # fuso nel payload da ErrorEvent#to_h.
+    # fuso nel payload da ErrorEvent#to_h. tags/extra/contexts passano dallo Scrubber (denylist
+    # ricorsiva per chiave): il backend NON li ri-scruba (Errors::Ingest::Normalize li conserva
+    # verbatim), quindi questa è l'unica rete di sicurezza contro le chiavi sensibili lì — R2.
     def to_event_hash
       {
         "user"        => serialize_user,
-        "tags"        => presence(@tags),
-        "extra"       => presence(@extra),
-        "contexts"    => presence(@contexts),
+        "tags"        => scrub(presence(@tags)),
+        "extra"       => scrub(presence(@extra)),
+        "contexts"    => scrub(presence(@contexts)),
         "request"     => @request,
         "breadcrumbs" => breadcrumbs_payload
       }.reject { |_key, value| value.nil? }
     end
 
     private
+
+    # Redige i valori delle chiavi sensibili preservando la struttura (es. contexts.runtime resta
+    # intatto, solo i valori sotto chiavi sensibili diventano [FILTERED]). Riusa lo Scrubber della
+    # configurazione, lo stesso percorso di breadcrumb.data e degli attributi di log.
+    def scrub(hash)
+      return hash if hash.nil?
+
+      Scrubber.new(CloseYourIt.configuration).filter_params(hash)
+    end
 
     # `user.id` sempre; email/ip_address/username solo con `send_pii` (il backend li strippa
     # comunque — difesa in profondità).
