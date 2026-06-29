@@ -7,6 +7,16 @@ e il progetto aderisce al [Semantic Versioning](https://semver.org/lang/it/).
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-06-29
+
+### Corretto
+- **Scrubber — chiavi `pass*`**: la denylist ometteva `pass` bare (`pass_code`, `passkey`,
+  `passphrase`) → allineata 1:1 al regex di backend/Dart (parità client-side, niente leak).
+- **Scope — `tags`/`extra`/`contexts` scrubbati client-side** prima dell'invio: il backend non li
+  ri-scrubbava sugli errori, quindi era l'unica difesa contro le chiavi sensibili in quei campi.
+- **Log — chunking del batch a `LOGS_MAX_BATCH` (1000)**: un flush oltre il limite del server veniva
+  rigettato in blocco (413) coi log persi; ora è spezzato in più POST sequenziali.
+
 ## [0.3.2] - 2026-06-29
 
 ### Aggiunto
