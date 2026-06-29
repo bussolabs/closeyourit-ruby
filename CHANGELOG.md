@@ -7,6 +7,23 @@ e il progetto aderisce al [Semantic Versioning](https://semver.org/lang/it/).
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-06-29
+
+### Aggiunto
+- **Rilevamento performance issue lato client** (opt-in `detect_performance_issues`, default OFF):
+  `Performance::RequestProfile` accumula per-richiesta le query (per fingerprint + call-site, stile
+  prosopite) e le chiamate HTTP esterne; `Performance::Rollup` emette verdetti `n_plus_one` /
+  `high_query_count` / `slow_request` / `slow_external_http` come `PerformanceIssueEvent`
+  (kind `performance_issue`, con `trace_id`) verso `/metrics`. `trace_id` aggiunto anche a
+  `SlowQueryEvent`.
+
+### Corretto
+- **`capture_rails_logs` non agganciava il broadcast** (i log dell'app non arrivavano a CloseYourIt):
+  l'initializer del railtie `closeyourit.capture_rails_logs` girava **prima** di
+  `config/initializers/closeyourit.rb` (dove `CloseYourIt.init` imposta `capture_rails_logs = true`),
+  quindi leggeva il default `false` e non agganciava mai il broadcast di `Rails.logger`. Aggiunto
+  `after: :load_config_initializers` all'initializer.
+
 ## [0.3.3] - 2026-06-29
 
 ### Corretto

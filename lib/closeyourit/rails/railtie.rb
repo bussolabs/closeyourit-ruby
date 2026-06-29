@@ -96,7 +96,11 @@ module CloseYourIt
 
       # Broadcast opt-in di Rails.logger → CloseYourIt.log (config.capture_rails_logs, default OFF).
       # Spedisce solo i log dell'app ≥ logs_min_level. Richiede BroadcastLogger (Rails 7.1+).
-      initializer "closeyourit.capture_rails_logs" do
+      # `after: :load_config_initializers`: config.capture_rails_logs è impostato in
+      # config/initializers/closeyourit.rb (CloseYourIt.init), che gira DOPO gli initializer dei
+      # railtie. Senza questo `after:` il check leggerebbe il default (false) e il broadcast non
+      # verrebbe mai agganciato → i log dell'app non arriverebbero a CloseYourIt.
+      initializer "closeyourit.capture_rails_logs", after: :load_config_initializers do
         config = CloseYourIt.configuration
         if config.capture_rails_logs && ::Rails.logger.respond_to?(:broadcast_to)
           ::Rails.logger.broadcast_to(CloseYourIt::Rails::LogBroadcast.new(config.logs_min_level))
