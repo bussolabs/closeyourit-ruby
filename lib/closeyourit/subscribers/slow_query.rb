@@ -2,6 +2,7 @@
 
 require_relative "../events/slow_query_event"
 require_relative "../scrubber"
+require_relative "../scope"
 
 module CloseYourIt
   module Subscribers
@@ -40,12 +41,32 @@ module CloseYourIt
         CloseYourIt.add_breadcrumb(
           category: "query",
           type: "query",
-          message: Scrubber.new(config).obfuscate_sql(sql),
+          message: scrubber(config).obfuscate_sql(sql),
           data: { "name" => name, "duration_ms" => duration_ms.to_f.round(2), "cached" => cached }
         )
       end
 
+      # Spinge OGNI query non di sistema nel RequestProfile dello Scope (per la detection N+1 a fine
+      # richiesta). Solo se detect_performance_issues: fingerprint = SQL offuscato + call-site.
+      def profile(name:, sql:, duration_ms:, cached: false, source: nil)
+        config = @configuration || CloseYourIt.configuration
+        return unless config.detect_performance_issues
+        return if ignored_name?(name)
+
+        CloseYourIt::Scope.current.performance_profile.add_query(
+          fingerprint: scrubber(config).obfuscate_sql(sql),
+          source: source, duration_ms: duration_ms, cached: cached
+        )
+      rescue StandardError
+        # La telemetria non deve mai disturbare la query ospite.
+        nil
+      end
+
       private
+
+      def scrubber(config)
+        @scrubber ||= Scrubber.new(config)
+      end
 
       def ignored_name?(name)
         name.nil? || IGNORED_NAMES.include?(name)

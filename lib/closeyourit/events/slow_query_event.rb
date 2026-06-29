@@ -3,6 +3,7 @@
 require "securerandom"
 require_relative "../event"
 require_relative "../scrubber"
+require_relative "../scope"
 
 module CloseYourIt
   # Payload `kind=slow_query` per la pipeline metriche (`/api/v1/projects/:id/metrics`).
@@ -27,6 +28,7 @@ module CloseYourIt
         "cached" => @payload.fetch(:cached, false),
         "db_system" => db_system,
         "source" => @payload[:source],
+        "trace_id" => CloseYourIt::Scope.current.trace_id,
         "bindings" => bindings,
         "sdk" => sdk
       )

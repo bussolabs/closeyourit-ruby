@@ -7,7 +7,9 @@ require_relative "error_subscriber"
 require_relative "../sidekiq/error_handler"
 require_relative "query_source"
 require_relative "log_broadcast"
+require_relative "net_http_patch"
 require_relative "../subscribers/slow_query"
+require_relative "../subscribers/request_performance"
 
 module CloseYourIt
   module Rails
@@ -45,7 +47,37 @@ module CloseYourIt
             duration_ms: event.duration,
             cached: event.payload.fetch(:cached, false)
           )
+          # Accumula la query nel profilo per-richiesta (detection N+1 a fine richiesta).
+          subscriber.profile(
+            name: event.payload[:name],
+            sql: event.payload[:sql],
+            duration_ms: event.duration,
+            cached: event.payload.fetch(:cached, false),
+            source: CloseYourIt::Rails::QuerySource.from_caller
+          )
         end
+      end
+
+      # A fine richiesta: trasforma il profilo accumulato in verdetti performance_issue (N+1, slow
+      # request, HTTP esterne lente). Il subscriber è no-op se detect_performance_issues è OFF.
+      initializer "closeyourit.subscribe_request_performance" do
+        perf = CloseYourIt::Subscribers::RequestPerformance.new
+
+        ActiveSupport::Notifications.subscribe("process_action.action_controller") do |*args|
+          event = ActiveSupport::Notifications::Event.new(*args)
+          payload = event.payload
+          perf.record(
+            route: "#{payload[:controller]}##{payload[:action]}",
+            duration_ms: event.duration
+          )
+        end
+      end
+
+      # Strumenta le chiamate HTTP esterne (Net::HTTP) per rilevare quelle lente nella finestra della
+      # richiesta. Il patch è no-op (chiama super) se la detection è OFF → overhead trascurabile.
+      initializer "closeyourit.instrument_net_http" do
+        require "net/http"
+        ::Net::HTTP.prepend(CloseYourIt::Rails::NetHTTPPatch) unless ::Net::HTTP.ancestors.include?(CloseYourIt::Rails::NetHTTPPatch)
       end
 
       # Cattura gli errori di ActiveJob/Solid Queue (around_perform).

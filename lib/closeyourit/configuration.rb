@@ -24,7 +24,10 @@ module CloseYourIt
                   :breadcrumbs_enabled, :max_breadcrumbs, :sample_rate,
                   :capture_handled_errors, :report_active_job_errors,
                   :logs_enabled, :logs_sample_rate, :logs_batch_size, :logs_flush_interval,
-                  :capture_rails_logs, :logs_min_level
+                  :capture_rails_logs, :logs_min_level,
+                  :detect_performance_issues, :n_plus_one_threshold, :query_count_threshold,
+                  :query_time_threshold_ms, :slow_request_threshold_ms, :slow_external_threshold_ms,
+                  :capture_external_http
     attr_writer :release
     attr_reader :excluded_exceptions, :filter_parameters, :scrub_message_patterns
 
@@ -75,6 +78,17 @@ module CloseYourIt
       # Broadcast opt-in di Rails.logger → CloseYourIt.log (default OFF; spedisce solo ≥ soglia).
       @capture_rails_logs = false
       @logs_min_level     = :info
+
+      # Performance issue detection (verdetti aggregati: N+1, slow request, HTTP esterne lente).
+      # OPT-IN, default OFF: profila OGNI query della richiesta → overhead non trascurabile, va attivato
+      # consapevolmente per-app. Le soglie sono conservative (poco rumore). Vedi Performance::Rollup.
+      @detect_performance_issues = false
+      @n_plus_one_threshold      = 10        # stesso fingerprint+call-site eseguito > N volte in una richiesta
+      @query_count_threshold     = 100       # troppe query totali in una richiesta
+      @query_time_threshold_ms   = 500       # tempo DB totale per richiesta oltre cui = high_query_count
+      @slow_request_threshold_ms = 1000      # durata totale della richiesta
+      @slow_external_threshold_ms = 1000     # singola chiamata HTTP esterna
+      @capture_external_http     = true      # strumenta Net::HTTP (solo se detect_performance_issues)
 
       @filter_parameters      = []
       @scrub_message_patterns = []

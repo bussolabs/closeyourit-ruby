@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "breadcrumb_buffer"
+require_relative "performance/request_profile"
 
 module CloseYourIt
   # Contesto per-richiesta (o per-job) isolato per execution-context (Fiber storage):
@@ -65,6 +66,12 @@ module CloseYourIt
       @breadcrumbs.add(breadcrumb)
     end
 
+    # Profilo di performance per-richiesta (query + HTTP esterne). Lazy: creato al primo accesso,
+    # azzerato da #clear a fine richiesta. Il verdetto lo calcola Subscribers::RequestPerformance.
+    def performance_profile
+      @performance_profile ||= Performance::RequestProfile.new
+    end
+
     def clear
       @user        = {}
       @tags        = {}
@@ -73,6 +80,7 @@ module CloseYourIt
       @request     = nil
       @trace_id    = nil
       @breadcrumbs = BreadcrumbBuffer.new(CloseYourIt.configuration.max_breadcrumbs)
+      @performance_profile = nil
     end
 
     # Sottoinsieme non vuoto in forma evento Sentry (user/tags/extra/contexts/request),
