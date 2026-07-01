@@ -26,12 +26,12 @@ Caratteristiche:
 
 ## Installazione
 
-Uso interno → install via git o path (no RubyGems):
+Pubblicata su [RubyGems](https://rubygems.org/gems/closeyourit-ruby):
 
 ```ruby
 # Gemfile del progetto da monitorare
-gem "closeyourit-ruby", git: "https://github.com/bussolabs/closeyourit-ruby"
-# in sviluppo locale:
+gem "closeyourit-ruby"
+# in sviluppo locale, dal checkout:
 # gem "closeyourit-ruby", path: "../closeyourit-ruby"
 ```
 
