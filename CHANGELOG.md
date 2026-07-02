@@ -7,6 +7,8 @@ e il progetto aderisce al [Semantic Versioning](https://semver.org/lang/it/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-02
+
 ### Aggiunto
 - **Context lines nei frame dello stacktrace**: ogni frame con file sorgente leggibile porta
   `pre_context`/`context_line`/`post_context` (config `context_lines`, default 3, `0` disattiva;
