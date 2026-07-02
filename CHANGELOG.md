@@ -7,6 +7,16 @@ e il progetto aderisce al [Semantic Versioning](https://semver.org/lang/it/).
 
 ## [Unreleased]
 
+### Aggiunto
+- **Context lines nei frame dello stacktrace**: ogni frame con file sorgente leggibile porta
+  `pre_context`/`context_line`/`post_context` (config `context_lines`, default 3, `0` disattiva;
+  `LineCache` bounded e thread-safe). L'error show del backend renderizza già lo snippet.
+- **Body della richiesta nell'evento (`request.data`)**: estratto LAZY solo quando l'errore accade
+  (mai sul percorso felice) — preferisce i params già parsati da Rails/Rack, fallback rilettura
+  `rack.input` con rewind (JSON/form, cap 64 KB). Sanitizzato (upload → `[FILE: …]`, oggetti →
+  `[OBJECT: …]`, stringhe troncate a 1024) e scrubbato (denylist + `filter_parameters`); il backend
+  ri-scruba difensivamente. Config `capture_request_body` (default true).
+
 ## [0.3.4] - 2026-06-29
 
 ### Aggiunto

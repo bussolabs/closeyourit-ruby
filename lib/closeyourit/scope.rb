@@ -35,7 +35,7 @@ module CloseYourIt
       end
     end
 
-    attr_accessor :request, :trace_id
+    attr_accessor :request, :trace_id, :rack_env
     attr_reader :user, :tags, :extra, :contexts, :breadcrumbs
 
     def initialize
@@ -78,6 +78,7 @@ module CloseYourIt
       @extra       = {}
       @contexts    = {}
       @request     = nil
+      @rack_env    = nil
       @trace_id    = nil
       @breadcrumbs = BreadcrumbBuffer.new(CloseYourIt.configuration.max_breadcrumbs)
       @performance_profile = nil
@@ -93,7 +94,7 @@ module CloseYourIt
         "tags"        => scrub(presence(@tags)),
         "extra"       => scrub(presence(@extra)),
         "contexts"    => scrub(presence(@contexts)),
-        "request"     => @request,
+        "request"     => request_payload,
         "breadcrumbs" => breadcrumbs_payload
       }.reject { |_key, value| value.nil? }
     end
@@ -107,6 +108,24 @@ module CloseYourIt
       return hash if hash.nil?
 
       Scrubber.new(CloseYourIt.configuration).filter_params(hash)
+    end
+
+    # Request context + body params (`request.data`) estratti LAZY qui — cioè solo quando un
+    # evento viene davvero costruito, mai sul percorso felice della richiesta.
+    def request_payload
+      return nil if @request.nil?
+
+      data = request_body_data
+      data ? @request.merge("data" => data) : @request
+    end
+
+    def request_body_data
+      return nil unless CloseYourIt.configuration.capture_request_body
+      return nil if @rack_env.nil?
+
+      Rails::RequestBody.extract(@rack_env)
+    rescue StandardError
+      nil
     end
 
     # `user.id` sempre; email/ip_address/username solo con `send_pii` (il backend li strippa

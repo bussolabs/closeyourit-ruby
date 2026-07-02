@@ -20,7 +20,11 @@ module CloseYourIt
         if enabled?
           # trace_id sempre (correlazione log↔errori), anche con capture_request OFF.
           CloseYourIt::Scope.current.trace_id = trace_id_for(env)
-          CloseYourIt::Scope.current.request = build_request(env) if CloseYourIt.configuration.capture_request
+          if CloseYourIt.configuration.capture_request
+            CloseYourIt::Scope.current.request = build_request(env)
+            # Riferimento all'env per l'estrazione LAZY del body (request.data) a evento costruito.
+            CloseYourIt::Scope.current.rack_env = env
+          end
         end
         @app.call(env)
       ensure
