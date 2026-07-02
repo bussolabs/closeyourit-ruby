@@ -154,4 +154,46 @@ RSpec.describe CloseYourIt::Rails::RequestContext do
       JSON.parse(req.body).dig("request", "method") == "GET"
     }
   end
+
+  describe "request body (request.data, estratto lazy al momento dell'errore)" do
+    let(:post_env) do
+      body = "name=Anna&password=hunter2"
+      env.merge(
+        "REQUEST_METHOD" => "POST",
+        "CONTENT_TYPE"   => "application/x-www-form-urlencoded",
+        "CONTENT_LENGTH" => body.bytesize.to_s,
+        "rack.input"     => StringIO.new(body)
+      )
+    end
+
+    def event_request_data(app_env)
+      url = "https://closeyour.it/api/v1/projects/proj-1/events"
+      stub_request(:post, url)
+      app = ->(_e) { raise "kaboom" }
+      stack = described_class.new(CloseYourIt::Rails::CaptureExceptions.new(app))
+      expect { stack.call(app_env) }.to raise_error(RuntimeError, "kaboom")
+
+      data = nil
+      expect(WebMock).to have_requested(:post, url).with { |req|
+        data = JSON.parse(req.body).dig("request", "data")
+        true
+      }
+      data
+    end
+
+    it "l'evento porta i params del body scrubbati" do
+      enable!
+      expect(event_request_data(post_env)).to eq("name" => "Anna", "password" => "[FILTERED]")
+    end
+
+    it "niente request.data con capture_request_body disattivo" do
+      enable!(capture_request_body: false)
+      expect(event_request_data(post_env)).to be_nil
+    end
+
+    it "niente request.data sulle richieste senza body" do
+      enable!
+      expect(event_request_data(env)).to be_nil
+    end
+  end
 end
