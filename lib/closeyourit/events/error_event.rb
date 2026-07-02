@@ -4,6 +4,7 @@ require "securerandom"
 require "socket"
 require_relative "../event"
 require_relative "../scrubber"
+require_relative "../line_cache"
 
 module CloseYourIt
   # Trasforma un'eccezione Ruby nel **payload evento Sentry** che il backend CloseYourIt ingerisce
@@ -72,19 +73,33 @@ module CloseYourIt
       }
     end
 
-    # Sentry-style: frame più recente per ultimo; chiavi filename/function/lineno/in_app/abs_path.
+    # Sentry-style: frame più recente per ultimo; chiavi filename/function/lineno/in_app/abs_path
+    # + snippet di sorgente (pre_context/context_line/post_context) quando il file è leggibile.
     def frames(locations)
       return [] if locations.nil?
 
+      context_lines = @configuration.context_lines.to_i
       locations.reverse.map do |loc|
-        {
+        frame = {
           "filename" => loc.path,
           "abs_path" => loc.path,
           "function" => loc.label,
           "lineno" => loc.lineno,
           "in_app" => in_app?(loc.path)
         }
+        add_context!(frame, loc.path, loc.lineno, context_lines) if context_lines.positive?
+        frame
       end
+    end
+
+    def add_context!(frame, path, lineno, count)
+      lines = LineCache.lines(path)
+      return if lines.nil? || lineno.nil? || lineno < 1 || lineno > lines.size
+
+      index = lineno - 1
+      frame["pre_context"]  = lines[[ index - count, 0 ].max...index]
+      frame["context_line"] = lines[index]
+      frame["post_context"] = lines[index + 1, count] || []
     end
 
     def in_app?(path)

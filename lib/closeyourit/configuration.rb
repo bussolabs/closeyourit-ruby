@@ -20,7 +20,7 @@ module CloseYourIt
                   :slow_query_threshold_ms, :slow_method_threshold_ms,
                   :send_pii, :obfuscate_sql, :send_server_name,
                   :capture_query_bindings, :capture_method_arguments,
-                  :capture_request, :request_header_allowlist,
+                  :capture_request, :request_header_allowlist, :context_lines,
                   :breadcrumbs_enabled, :max_breadcrumbs, :sample_rate,
                   :capture_handled_errors, :report_active_job_errors,
                   :logs_enabled, :logs_sample_rate, :logs_batch_size, :logs_flush_interval,
@@ -54,6 +54,9 @@ module CloseYourIt
       # Contesto HTTP della richiesta (method/url/header allowlist). Body/query/IP solo con send_pii.
       @capture_request          = true
       @request_header_allowlist = DEFAULT_REQUEST_HEADER_ALLOWLIST.dup
+
+      # Righe di sorgente attorno a ogni frame dello stacktrace (pre/context/post). 0 = disattivo.
+      @context_lines = 3
 
       # Breadcrumbs: cronologia (query offuscate, eventi custom) allegata all'errore.
       @breadcrumbs_enabled = true
